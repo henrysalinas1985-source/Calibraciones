@@ -323,4 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Ejecutar chequeo al cargar
     setTimeout(checkExpirations, 2000);
+
+    init();
 });
