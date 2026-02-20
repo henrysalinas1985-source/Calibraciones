@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Calibraciones | Terumo</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>⚖️ Gestión de Calibraciones</h1>
+            <p class="subtitle">Monitoreo y alertas de vencimientos por clínica</p>
+        </header>
+
+        <section class="card upload-section">
+            <div class="file-upload" id="dropZone">
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+                <div class="icon">📊</div>
+                <div class="text" id="fileLabel">Cargar Excel de Equipos</div>
+            </div>
+            <div class="btn-row hidden" id="configActions">
+                <button id="clearDataBtn" class="btn btn-danger">🗑️ Borrar Datos</button>
+            </div>
+        </section>
+
+        <main id="mainContent" class="hidden">
+            <div class="filters-grid">
+                <div class="card">
+                    <label>🏥 Seleccionar Clínica (Hoja)</label>
+                    <select id="sheetSelector" class="filter-select"></select>
+                </div>
+                <div class="card">
+                    <label>🔍 Buscar por Serie</label>
+                    <input type="text" id="serieFilter" placeholder="Ingresa número de serie..."
+                        style="text-transform: uppercase;">
+                </div>
+            </div>
+
+            <div class="card summary-card">
+                <div class="summary-item" id="totalEquipos">
+                    <span class="val">0</span>
+                    <span class="lab">Equipos</span>
+                </div>
+                <div class="summary-item warning" id="cercaVencer">
+                    <span class="val">0</span>
+                    <span class="lab">Por Vencer</span>
+                </div>
+                <div class="summary-item danger" id="vencidos">
+                    <span class="val">0</span>
+                    <span class="lab">Vencidos</span>
+                </div>
+            </div>
+
+            <div class="table-container card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Equipo / Nombre</th>
+                            <th>Serie</th>
+                            <th>Última Calibración</th>
+                            <th>Estado</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="equiposTableBody"></tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- Modal Editar Calibración -->
+        <div id="editModal" class="modal-overlay hidden">
+            <div class="modal">
+                <h3 id="modalTitle">Actualizar Calibración</h3>
+                <p id="modalSerie" style="text-align: center; color: #888; font-size: 0.9rem; margin-bottom: 20px;"></p>
+                <div class="input-group">
+                    <label>Fecha de Calibración</label>
+                    <input type="date" id="calibDateInput">
+                </div>
+                <div class="btn-row">
+                    <button id="saveCalibBtn" class="btn btn-primary">Guardar</button>
+                    <button id="closeModalBtn" class="btn btn-secondary">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>
