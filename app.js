@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const equiposTableBody = document.getElementById('equiposTableBody');
     const editModal = document.getElementById('editModal');
     const calibDateInput = document.getElementById('calibDateInput');
+    const ordenMInput = document.getElementById('ordenMInput');
     const technicianInput = document.getElementById('technicianInput');
     const certFileInput = document.getElementById('certFileInput');
     const certStatus = document.getElementById('certStatus');
@@ -62,10 +63,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, certificate) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician };
+        const data = { serie, date, technician, ordenM };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -278,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedSerieForEdit = serie;
             const existing = calibrationDates[serie] || {};
             calibDateInput.value = existing.date || '';
+            ordenMInput.value = existing.ordenM || '';
             technicianInput.value = existing.technician || '';
             certFileInput.value = ''; // Limpiar input file
             certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
@@ -301,8 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCalibBtn.addEventListener('click', async () => {
             if (!selectedSerieForEdit) return;
             const newDate = calibDateInput.value;
+            const ordenM = ordenMInput.value;
             const technician = technicianInput.value;
-            const certificate = certFileInput.files[0] || null;
+            let certificate = certFileInput.files[0] || null;
 
             if (!newDate) {
                 alert('Por favor selecciona una fecha de calibración.');
@@ -310,13 +313,81 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                await storeCalibration(selectedSerieForEdit, newDate, technician, certificate);
+                // Si es un archivo Excel (recién subido o ya existente), lo intentamos actualizar
+                const equipmentData = allSheetsData[currentClinic].find(row => {
+                    const k = Object.keys(row).find(key => key.toLowerCase().includes('serie'));
+                    return String(row[k] || '').toUpperCase() === selectedSerieForEdit;
+                });
+
+                const existingData = calibrationDates[selectedSerieForEdit] || {};
+                let certToUpdate = certificate || existingData.certificate;
+                let certName = certificate ? certificate.name : existingData.certName;
+
+                if (certToUpdate && (certName.endsWith('.xlsx') || certName.endsWith('.xls'))) {
+                    certificate = await updateExcelCertificate(certToUpdate, {
+                        date: newDate,
+                        technician: technician,
+                        ordenM: ordenM,
+                        equipment: equipmentData
+                    });
+                }
+
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate);
                 editModal.classList.add('hidden');
                 renderTable();
             } catch (err) {
                 console.error('Error al guardar calibración:', err);
                 alert('No se pudo guardar la información.');
             }
+        });
+    }
+
+    // === EXCEL MANIPULATION ===
+    async function updateExcelCertificate(originalBlob, data) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const arrayBuffer = e.target.result;
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // Helper para encontrar keys dinámicamente
+                    const getVal = (row, words) => {
+                        const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
+                        return row[key] || '';
+                    };
+
+                    const eq = data.equipment || {};
+
+                    // Mapeo según imagen proporcionada
+                    const updates = {
+                        'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
+                        'D5': `Modelo: ${getVal(eq, ['modelo'])}`,
+                        'A6': `N° serie: ${selectedSerieForEdit}`,
+                        'D6': `Marca: ${getVal(eq, ['marca'])}`,
+                        'I5': getVal(eq, ['edificio']),
+                        'I6': getVal(eq, ['sector']),
+                        'I7': getVal(eq, ['ubicación', 'ubicacion']),
+                        'I8': formatDate(data.date),
+                        'I9': data.ordenM,
+                        'I10': data.technician
+                    };
+
+                    for (const [cell, value] of Object.entries(updates)) {
+                        if (!worksheet[cell]) worksheet[cell] = { t: 's', v: '' };
+                        worksheet[cell].v = value;
+                    }
+
+                    const newBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+                    resolve(new Blob([newBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(originalBlob);
         });
     }
 
