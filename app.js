@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const calibDateInput = document.getElementById('calibDateInput');
     const ordenMInput = document.getElementById('ordenMInput');
     const technicianInput = document.getElementById('technicianInput');
+    const buildingInput = document.getElementById('buildingInput');
+    const sectorInput = document.getElementById('sectorInput');
+    const locationInput = document.getElementById('locationInput');
     const certFileInput = document.getElementById('certFileInput');
     const certStatus = document.getElementById('certStatus');
     const saveCalibBtn = document.getElementById('saveCalibBtn');
@@ -63,10 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, ordenM, certificate) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM };
+        const data = { serie, date, technician, ordenM, building, sector, location };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -278,9 +281,27 @@ document.addEventListener('DOMContentLoaded', () => {
         window.openEdit = (serie) => {
             selectedSerieForEdit = serie;
             const existing = calibrationDates[serie] || {};
+
+            // Buscar datos base del equipo para pre-llenar si no hay guardados
+            const equipmentData = (allSheetsData[currentClinic] || []).find(row => {
+                const k = Object.keys(row).find(key => key.toLowerCase().includes('serie'));
+                return String(row[k] || '').toUpperCase() === serie;
+            }) || {};
+
+            const getVal = (row, words) => {
+                const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
+                return row[key] || '';
+            };
+
             calibDateInput.value = existing.date || '';
             ordenMInput.value = existing.ordenM || '';
             technicianInput.value = existing.technician || '';
+
+            // Prioridad: 1. Datos guardados (ediciones previas) 2. Datos del Excel base
+            buildingInput.value = existing.building || getVal(equipmentData, ['edificio']);
+            sectorInput.value = existing.sector || getVal(equipmentData, ['sector']);
+            locationInput.value = existing.location || getVal(equipmentData, ['ubicación', 'ubicacion']);
+
             certFileInput.value = ''; // Limpiar input file
             certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
             document.getElementById('modalSerie').textContent = `Serie: ${serie}`;
@@ -305,6 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const newDate = calibDateInput.value;
             const ordenM = ordenMInput.value;
             const technician = technicianInput.value;
+            const building = buildingInput.value;
+            const sector = sectorInput.value;
+            const location = locationInput.value;
             let certificate = certFileInput.files[0] || null;
 
             if (!newDate) {
@@ -329,11 +353,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         date: newDate,
                         technician: technician,
                         ordenM: ordenM,
-                        equipment: equipmentData
+                        equipment: equipmentData,
+                        building: building,
+                        sector: sector,
+                        location: location
                     });
                 }
 
-                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate);
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location);
                 editModal.classList.add('hidden');
                 renderTable();
             } catch (err) {
@@ -370,9 +397,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 'D5': `Modelo: ${getVal(eq, ['modelo'])}`,
                 'A7': `N° serie: ${selectedSerieForEdit}`,
                 'D7': `Marca: ${getVal(eq, ['marca'])}`,
-                'H5': getVal(eq, ['edificio']),
-                'H6': getVal(eq, ['sector']),
-                'H7': getVal(eq, ['ubicación', 'ubicacion']),
+                'H5': String(data.building || ''),
+                'H6': String(data.sector || ''),
+                'H7': String(data.location || ''),
                 'H8': formatDate(data.date),
                 'H9': data.ordenM,
                 'H10': data.technician
