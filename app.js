@@ -361,18 +361,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const eq = data.equipment || {};
 
-                    // Mapeo según imagen proporcionada (corregido)
+                    // Mapeo según imagen proporcionada (corregido según plantilla 2025)
                     const updates = {
-                        'A6': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
-                        'D6': `Modelo: ${getVal(eq, ['modelo'])}`,
-                        'A7': `N° serie: ${selectedSerieForEdit}`,
-                        'D7': `Marca: ${getVal(eq, ['marca'])}`,
-                        'I5': getVal(eq, ['edificio']),
-                        'I6': getVal(eq, ['sector']),
-                        'I7': getVal(eq, ['ubicación', 'ubicacion']),
-                        'I8': formatDate(data.date),
-                        'I9': data.ordenM,
-                        'I10': data.technician
+                        'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`, // Merged A5:C6
+                        'D5': `Modelo: ${getVal(eq, ['modelo'])}`,         // Merged D5:F6
+                        'A7': `Marca: ${getVal(eq, ['marca'])}`,           // Merged A7:C8
+                        'D7': `N° serie: ${selectedSerieForEdit}`,        // Merged D7:F8
+                        'H5': getVal(eq, ['edificio']),
+                        'H6': getVal(eq, ['sector']),
+                        'H7': getVal(eq, ['ubicación', 'ubicacion']),
+                        'H8': formatDate(data.date),
+                        'H9': data.ordenM,
+                        'H10': data.technician
                     };
 
                     for (const [cell, value] of Object.entries(updates)) {
