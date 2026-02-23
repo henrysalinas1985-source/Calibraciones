@@ -368,8 +368,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const updates = {
                 'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
                 'D5': `Modelo: ${getVal(eq, ['modelo'])}`,
-                'A7': `Marca: ${getVal(eq, ['marca'])}`,
-                'D7': `N° serie: ${selectedSerieForEdit}`,
+                'A7': `N° serie: ${selectedSerieForEdit}`,
+                'D7': `Marca: ${getVal(eq, ['marca'])}`,
                 'H5': getVal(eq, ['edificio']),
                 'H6': getVal(eq, ['sector']),
                 'H7': getVal(eq, ['ubicación', 'ubicacion']),
@@ -380,9 +380,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             for (const [cellPos, value] of Object.entries(updates)) {
                 const cell = worksheet.getCell(cellPos);
-                // Si la celda es parte de un grupo de celdas combinadas, ExcelJS lo maneja solo.
-                // Intentamos mantener el estilo existente y solo cambiar el valor.
+                // Intentamos preservar el estilo original de la celda antes de cambiar el valor
+                const currentStyle = cell.style;
                 cell.value = value;
+                cell.style = currentStyle;
             }
 
             const buffer = await workbook.xlsx.writeBuffer();
