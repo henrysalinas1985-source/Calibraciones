@@ -138,22 +138,91 @@ h1 {
 
 .table-container {
 
-    /* Instrumental en Modal */
+    /* Instrumental en Modal - Estilo Tarjeta Premium */
+    .instruments-section {
+        margin-top: 25px;
+        padding-top: 15px;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .instruments-section h4 {
+        color: #1a1a1a;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+
+    .instruments-list {
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: 5px;
+        margin-bottom: 15px;
+    }
+
+    /* Scrollbar estilizada */
+    .instruments-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .instruments-list::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .instruments-list::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 10px;
+    }
+
+    .instruments-list::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
     .instrument-item {
-        background: #f9f9f9;
-        padding: 10px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        border: 1px solid #eee;
+        background: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        border: 1px solid #e5e7eb;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 12px;
         position: relative;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+    }
+
+    .instrument-item:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .instrument-item .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .instrument-item label {
+        font-size: 10px;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: #6b7280;
+        margin: 0;
     }
 
     .instrument-item input {
-        height: 28px !important;
-        font-size: 0.8rem !important;
+        height: 32px !important;
+        padding: 4px 8px !important;
+        font-size: 0.85rem !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 6px !important;
+        background: #fafafa !important;
+    }
+
+    .instrument-item input:focus {
+        background: #fff !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
     }
 
     .instrument-item .full-width {
@@ -162,19 +231,27 @@ h1 {
 
     .remove-instrument {
         position: absolute;
-        top: -5px;
-        right: -5px;
-        background: #ff4d4d;
+        top: -8px;
+        right: -8px;
+        background: #ef4444;
         color: white;
-        border: none;
+        border: 2px solid white;
         border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        font-size: 12px;
+        width: 24px;
+        height: 24px;
+        font-size: 14px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+        transition: transform 0.2s ease;
+    }
+
+    .remove-instrument:hover {
+        background: #dc2626;
+        transform: scale(1.1);
     }
 
     overflow-x: auto;

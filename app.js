@@ -298,12 +298,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div');
         div.className = 'instrument-item';
         div.innerHTML = `
-            <button type="button" class="remove-instrument">×</button>
-            <input type="text" class="inst-name full-width" placeholder="Instrumental utilizado" list="instrumentsHistory" value="${data.name || ''}">
-            <input type="text" class="inst-brand" placeholder="Marca" value="${data.brand || ''}">
-            <input type="text" class="inst-model" placeholder="Modelo" value="${data.model || ''}">
-            <input type="text" class="inst-serie" placeholder="N° de serie" value="${data.serie || ''}">
-            <input type="text" class="inst-date" placeholder="Calibración" value="${data.date || ''}">
+            <button type="button" class="remove-instrument" title="Eliminar instrumento">×</button>
+            <div class="field-group full-width">
+                <label>Nombre del Instrumental</label>
+                <input type="text" class="inst-name" placeholder="Ej: MULTIPARAMETRICO SIMULADOR" list="instrumentsHistory" value="${data.name || ''}">
+            </div>
+            <div class="field-group">
+                <label>Marca</label>
+                <input type="text" class="inst-brand" placeholder="Marca" value="${data.brand || ''}">
+            </div>
+            <div class="field-group">
+                <label>Modelo</label>
+                <input type="text" class="inst-model" placeholder="Modelo" value="${data.model || ''}">
+            </div>
+            <div class="field-group">
+                <label>N° de Serie</label>
+                <input type="text" class="inst-serie" placeholder="N° de serie" value="${data.serie || ''}">
+            </div>
+            <div class="field-group">
+                <label>Últ. Calibración</label>
+                <input type="text" class="inst-date" placeholder="DD/MM/YYYY" value="${data.date || ''}">
+            </div>
         `;
 
         const nameInput = div.querySelector('.inst-name');
