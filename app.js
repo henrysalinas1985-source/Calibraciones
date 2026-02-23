@@ -92,23 +92,29 @@ document.addEventListener('DOMContentLoaded', () => {
         store.put(data);
     }
 
-    async function getAllCalibrations() {
-        calibrationDates = {};
-        const tx = db.transaction('calibrations', 'readonly');
-        const store = tx.objectStore('calibrations');
-        const request = store.openCursor();
+    function getAllCalibrations() {
+        return new Promise((resolve) => {
+            const map = {};
+            const tx = db.transaction('calibrations', 'readonly');
+            const store = tx.objectStore('calibrations');
+            const request = store.openCursor();
 
-        request.onsuccess = (e) => {
-            const cursor = e.target.result;
-            if (cursor) {
-                calibrationDates[cursor.key] = cursor.value;
-                cursor.continue();
-            } else {
-                updateInstrumentsBank();
-                if (sheetSelector.value) renderTable(); // Changed clinicSelect to sheetSelector
-            }
-        };
-        request.onerror = (e) => console.error("Error getting all calibrations:", e.target.error);
+            request.onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    map[cursor.key] = cursor.value;
+                    cursor.continue();
+                } else {
+                    calibrationDates = map;
+                    updateInstrumentsBank();
+                    resolve(map);
+                }
+            };
+            request.onerror = (e) => {
+                console.error("Error context getting all calibrations:", e.target.error);
+                resolve({});
+            };
+        });
     }
 
     function updateInstrumentsBank() {
@@ -236,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function renderTable() {
         if (!currentClinic || !allSheetsData[currentClinic]) return;
 
-        calibrationDates = await getAllCalibrations();
+        await getAllCalibrations(); // This updates global calibrationDates and instrumentsBank
         const data = allSheetsData[currentClinic];
         const searchTerm = serieFilter.value.trim().toUpperCase();
 
