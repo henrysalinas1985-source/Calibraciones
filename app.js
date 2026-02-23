@@ -313,8 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // Si es un archivo Excel (recién subido o ya existente), lo intentamos actualizar
-                const equipmentData = allSheetsData[currentClinic].find(row => {
+                // Obtener datos del equipo para el autocompletado del certificado
+                const equipmentData = (allSheetsData[currentClinic] || []).find(row => {
                     const k = Object.keys(row).find(key => key.toLowerCase().includes('serie'));
                     return String(row[k] || '').toUpperCase() === selectedSerieForEdit;
                 });
@@ -323,6 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let certToUpdate = certificate || existingData.certificate;
                 let certName = certificate ? certificate.name : existingData.certName;
 
+                // Si hay un certificado Excel, lo actualizamos preservando formato
                 if (certToUpdate && (certName.toLowerCase().endsWith('.xlsx') || certName.toLowerCase().endsWith('.xls'))) {
                     certificate = await updateExcelCertificate(certToUpdate, {
                         date: newDate,
@@ -337,61 +338,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTable();
             } catch (err) {
                 console.error('Error al guardar calibración:', err);
-                alert('No se pudo guardar la información.');
+                alert('Error al guardar: ' + err.message);
             }
         });
     }
 
-    // === EXCEL MANIPULATION ===
+    // === EXCEL MANIPULATION (Using ExcelJS to preserve styles) ===
     async function updateExcelCertificate(originalBlob, data) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const arrayBuffer = e.target.result;
-                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+        try {
+            const arrayBuffer = await originalBlob.arrayBuffer();
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(arrayBuffer);
+            const worksheet = workbook.worksheets[0]; // Primera hoja
 
-                    // Helper para encontrar keys dinámicamente
-                    const getVal = (row, words) => {
-                        const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
-                        return row[key] || '';
-                    };
+            if (!worksheet) {
+                throw new Error('No se encontró la primera hoja en el certificado.');
+            }
 
-                    const eq = data.equipment || {};
-
-                    // Mapeo según imagen proporcionada (corregido según plantilla 2025)
-                    const updates = {
-                        'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`, // Merged A5:C6
-                        'D5': `Modelo: ${getVal(eq, ['modelo'])}`,         // Merged D5:F6
-                        'A7': `Marca: ${getVal(eq, ['marca'])}`,           // Merged A7:C8
-                        'D7': `N° serie: ${selectedSerieForEdit}`,        // Merged D7:F8
-                        'H5': getVal(eq, ['edificio']),
-                        'H6': getVal(eq, ['sector']),
-                        'H7': getVal(eq, ['ubicación', 'ubicacion']),
-                        'H8': formatDate(data.date),
-                        'H9': data.ordenM,
-                        'H10': data.technician
-                    };
-
-                    for (const [cell, value] of Object.entries(updates)) {
-                        // Forzamos tipo string 's' para evitar que Excel convierta fechas a números seriales (ej: 45540)
-                        worksheet[cell] = { t: 's', v: String(value) };
-                    }
-
-                    const newBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
-                    resolve(new Blob([newBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-                } catch (err) {
-                    reject(err);
-                }
+            // Helper para encontrar keys dinámicamente
+            const getVal = (row, words) => {
+                if (!row) return '';
+                const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
+                return row[key] || '';
             };
-            reader.onerror = reject;
-            reader.readAsArrayBuffer(originalBlob);
-        });
+
+            const eq = data.equipment || {};
+
+            // Mapeo según plantilla 2025 (Preservando estilos de celda)
+            const updates = {
+                'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
+                'D5': `Modelo: ${getVal(eq, ['modelo'])}`,
+                'A7': `Marca: ${getVal(eq, ['marca'])}`,
+                'D7': `N° serie: ${selectedSerieForEdit}`,
+                'H5': getVal(eq, ['edificio']),
+                'H6': getVal(eq, ['sector']),
+                'H7': getVal(eq, ['ubicación', 'ubicacion']),
+                'H8': formatDate(data.date),
+                'H9': data.ordenM,
+                'H10': data.technician
+            };
+
+            for (const [cellPos, value] of Object.entries(updates)) {
+                const cell = worksheet.getCell(cellPos);
+                // Si la celda es parte de un grupo de celdas combinadas, ExcelJS lo maneja solo.
+                // Intentamos mantener el estilo existente y solo cambiar el valor.
+                cell.value = value;
+            }
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        } catch (err) {
+            console.error('Error en updateExcelCertificate:', err);
+            throw err; // Propagar al llamador para mostrar el alert
+        }
     }
 
-    // === NOTIFICACIONES ===
     function requestNotificationPermission() {
         if ('Notification' in window) {
             Notification.requestPermission();
