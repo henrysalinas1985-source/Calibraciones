@@ -93,7 +93,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getAllCalibrations() {
+        console.log("Obteniendo todas las calibraciones...");
         return new Promise((resolve) => {
+            if (!db) {
+                console.warn("DB no inicializada.");
+                resolve({});
+                return;
+            }
             const map = {};
             const tx = db.transaction('calibrations', 'readonly');
             const store = tx.objectStore('calibrations');
@@ -105,43 +111,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     map[cursor.key] = cursor.value;
                     cursor.continue();
                 } else {
+                    console.log("Calibraciones cargadas:", Object.keys(map).length);
                     calibrationDates = map;
                     updateInstrumentsBank();
                     resolve(map);
                 }
             };
             request.onerror = (e) => {
-                console.error("Error context getting all calibrations:", e.target.error);
+                console.error("Error al obtener calibraciones:", e.target.error);
                 resolve({});
             };
         });
     }
 
     function updateInstrumentsBank() {
+        console.log("Actualizando banco de instrumentos...");
         const unique = new Map();
-        Object.values(calibrationDates).forEach(cal => {
-            if (cal.instruments) {
-                cal.instruments.forEach(inst => {
-                    if (inst.name && !unique.has(inst.name.trim().toUpperCase())) {
-                        unique.set(inst.name.trim().toUpperCase(), {
-                            name: inst.name,
-                            brand: inst.brand,
-                            model: inst.model,
-                            serie: inst.serie
-                        });
-                    }
+        try {
+            Object.values(calibrationDates).forEach(cal => {
+                if (cal && cal.instruments) {
+                    cal.instruments.forEach(inst => {
+                        if (inst.name && !unique.has(inst.name.trim().toUpperCase())) {
+                            unique.set(inst.name.trim().toUpperCase(), {
+                                name: inst.name,
+                                brand: inst.brand,
+                                model: inst.model,
+                                serie: inst.serie
+                            });
+                        }
+                    });
+                }
+            });
+            instrumentsBank = Array.from(unique.values());
+
+            const datalist = document.getElementById('instrumentsHistory');
+            if (datalist) {
+                datalist.innerHTML = '';
+                instrumentsBank.forEach(inst => {
+                    const opt = document.createElement('option');
+                    opt.value = inst.name;
+                    datalist.appendChild(opt);
                 });
             }
-        });
-        instrumentsBank = Array.from(unique.values());
-
-        const datalist = document.getElementById('instrumentsHistory');
-        datalist.innerHTML = '';
-        instrumentsBank.forEach(inst => {
-            const opt = document.createElement('option');
-            opt.value = inst.name;
-            datalist.appendChild(opt);
-        });
+        } catch (err) {
+            console.error("Error en updateInstrumentsBank:", err);
+        }
     }
 
     // === LÓGICA DE EXCEL ===
@@ -240,49 +254,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === RENDERIZADO ===
     async function renderTable() {
-        if (!currentClinic || !allSheetsData[currentClinic]) return;
+        console.log("Renderizando tabla para:", currentClinic);
+        if (!currentClinic || !allSheetsData[currentClinic]) {
+            console.warn("Faltan datos de hoja o clínica.");
+            return;
+        }
 
-        await getAllCalibrations(); // This updates global calibrationDates and instrumentsBank
+        await getAllCalibrations();
         const data = allSheetsData[currentClinic];
         const searchTerm = serieFilter.value.trim().toUpperCase();
 
         equiposTableBody.innerHTML = '';
         let stats = { total: 0, warning: 0, danger: 0 };
 
+        console.log("Filas a procesar:", data.length);
+
         data.forEach(row => {
-            const serieKey = Object.keys(row).find(k => k.toLowerCase().includes('serie'));
-            const nombreKey = Object.keys(row).find(k => k.toLowerCase().includes('equipo') || k.toLowerCase().includes('nombre'));
+            try {
+                const keys = Object.keys(row);
+                const serieKey = keys.find(k => k.toLowerCase().includes('serie'));
+                const nombreKey = keys.find(k => k.toLowerCase().includes('equipo') || k.toLowerCase().includes('nombre'));
 
-            const serie = String(row[serieKey] || '').toUpperCase();
-            if (searchTerm && !serie.includes(searchTerm)) return;
+                const serie = serieKey ? String(row[serieKey] || '').toUpperCase() : 'N/A';
+                if (searchTerm && !serie.includes(searchTerm)) return;
 
-            stats.total++;
-            const calibObj = calibrationDates[serie] || null;
-            const calibDate = calibObj ? calibObj.date : null;
-            const status = getStatus(calibDate);
-            if (status.class === 'status-warning') stats.warning++;
-            if (status.class === 'status-danger') stats.danger++;
+                stats.total++;
+                const calibObj = calibrationDates[serie] || null;
+                const calibDate = calibObj ? calibObj.date : null;
+                const status = getStatus(calibDate);
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row[nombreKey] || 'N/A'}</td>
-                <td>${serie || 'N/A'}</td>
-                <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
-                <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
-                <td>
-                    ${calibObj && calibObj.certificate ?
-                    `<button class="btn btn-small" title="Ver Certificado" onclick="window.viewCert('${serie}')">📄</button>` :
-                    '-'}
-                </td>
-                <td><span class="status-badge ${status.class}">${status.text}</span></td>
-                <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
-            `;
-            equiposTableBody.appendChild(tr);
+                if (status.class === 'status-warning') stats.warning++;
+                if (status.class === 'status-danger') stats.danger++;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${nombreKey ? (row[nombreKey] || 'N/A') : 'N/A'}</td>
+                    <td>${serie}</td>
+                    <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
+                    <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
+                    <td>
+                        ${calibObj && calibObj.certificate ?
+                        `<button class="btn btn-small" title="Ver Certificado" onclick="window.viewCert('${serie}')">📄</button>` :
+                        '-'}
+                    </td>
+                    <td><span class="status-badge ${status.class}">${status.text}</span></td>
+                    <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
+                `;
+                equiposTableBody.appendChild(tr);
+            } catch (err) {
+                console.error("Error procesando fila:", err, row);
+            }
         });
 
         totalEquiposEl.textContent = stats.total;
         cercaVencerEl.textContent = stats.warning;
         vencidosEl.textContent = stats.danger;
+        console.log("Render completo. Total:", stats.total);
     }
 
     function getStatus(dateStr) {
