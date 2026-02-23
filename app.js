@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let certToUpdate = certificate || existingData.certificate;
                 let certName = certificate ? certificate.name : existingData.certName;
 
-                if (certToUpdate && (certName.endsWith('.xlsx') || certName.endsWith('.xls'))) {
+                if (certToUpdate && (certName.toLowerCase().endsWith('.xlsx') || certName.toLowerCase().endsWith('.xls'))) {
                     certificate = await updateExcelCertificate(certToUpdate, {
                         date: newDate,
                         technician: technician,
@@ -361,12 +361,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const eq = data.equipment || {};
 
-                    // Mapeo según imagen proporcionada
+                    // Mapeo según imagen proporcionada (corregido)
                     const updates = {
-                        'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
-                        'D5': `Modelo: ${getVal(eq, ['modelo'])}`,
-                        'A6': `N° serie: ${selectedSerieForEdit}`,
-                        'D6': `Marca: ${getVal(eq, ['marca'])}`,
+                        'A6': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
+                        'D6': `Modelo: ${getVal(eq, ['modelo'])}`,
+                        'A7': `N° serie: ${selectedSerieForEdit}`,
+                        'D7': `Marca: ${getVal(eq, ['marca'])}`,
                         'I5': getVal(eq, ['edificio']),
                         'I6': getVal(eq, ['sector']),
                         'I7': getVal(eq, ['ubicación', 'ubicacion']),
@@ -376,8 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
 
                     for (const [cell, value] of Object.entries(updates)) {
-                        if (!worksheet[cell]) worksheet[cell] = { t: 's', v: '' };
-                        worksheet[cell].v = value;
+                        // Forzamos tipo string 's' para evitar que Excel convierta fechas a números seriales (ej: 45540)
+                        worksheet[cell] = { t: 's', v: String(value) };
                     }
 
                     const newBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
