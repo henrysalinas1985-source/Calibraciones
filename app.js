@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const equiposTableBody = document.getElementById('equiposTableBody');
     const editModal = document.getElementById('editModal');
     const calibDateInput = document.getElementById('calibDateInput');
+    const technicianInput = document.getElementById('technicianInput');
+    const certFileInput = document.getElementById('certFileInput');
+    const certStatus = document.getElementById('certStatus');
     const saveCalibBtn = document.getElementById('saveCalibBtn');
     const totalEquiposEl = document.getElementById('totalEquipos').querySelector('.val');
     const cercaVencerEl = document.getElementById('cercaVencer').querySelector('.val');
@@ -59,9 +62,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date) {
+    async function storeCalibration(serie, date, technician, certificate) {
         const tx = db.transaction('calibrations', 'readwrite');
-        tx.objectStore('calibrations').put({ serie, date });
+        const store = tx.objectStore('calibrations');
+        const data = { serie, date, technician };
+        if (certificate) {
+            data.certificate = certificate; // Blob
+            data.certName = certificate.name;
+        } else {
+            // Mantener el certificado anterior si no se sube uno nuevo
+            const existing = await new Promise(resolve => {
+                const req = store.get(serie);
+                req.onsuccess = () => resolve(req.result);
+            });
+            if (existing && existing.certificate) {
+                data.certificate = existing.certificate;
+                data.certName = existing.certName;
+            }
+        }
+        store.put(data);
     }
 
     async function getAllCalibrations() {
@@ -70,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const request = tx.objectStore('calibrations').getAll();
             request.onsuccess = () => {
                 const map = {};
-                request.result.forEach(item => map[item.serie] = item.date);
+                request.result.forEach(item => map[item.serie] = item);
                 resolve(map);
             };
         });
@@ -189,7 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (searchTerm && !serie.includes(searchTerm)) return;
 
             stats.total++;
-            const calibDate = calibrationDates[serie] || null;
+            const calibObj = calibrationDates[serie] || null;
+            const calibDate = calibObj ? calibObj.date : null;
             const status = getStatus(calibDate);
             if (status.class === 'status-warning') stats.warning++;
             if (status.class === 'status-danger') stats.danger++;
@@ -199,8 +219,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${row[nombreKey] || 'N/A'}</td>
                 <td>${serie || 'N/A'}</td>
                 <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
+                <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
+                <td>
+                    ${calibObj && calibObj.certificate ?
+                    `<button class="btn btn-small" title="Ver Certificado" onclick="window.viewCert('${serie}')">📄</button>` :
+                    '-'}
+                </td>
                 <td><span class="status-badge ${status.class}">${status.text}</span></td>
-                <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}', '${calibDate || ''}')">📅</button></td>
+                <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
             `;
             equiposTableBody.appendChild(tr);
         });
@@ -239,11 +265,24 @@ document.addEventListener('DOMContentLoaded', () => {
         serieFilter.addEventListener('input', renderTable);
 
         // Hacer la función accesible globalmente para el onclick del HTML
-        window.openEdit = (serie, currentDate) => {
+        window.openEdit = (serie) => {
             selectedSerieForEdit = serie;
-            calibDateInput.value = currentDate || '';
+            const existing = calibrationDates[serie] || {};
+            calibDateInput.value = existing.date || '';
+            technicianInput.value = existing.technician || '';
+            certFileInput.value = ''; // Limpiar input file
+            certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
             document.getElementById('modalSerie').textContent = `Serie: ${serie}`;
             editModal.classList.remove('hidden');
+        };
+
+        window.viewCert = (serie) => {
+            const data = calibrationDates[serie];
+            if (data && data.certificate) {
+                const url = URL.createObjectURL(data.certificate);
+                window.open(url, '_blank');
+                // Nota: Sería ideal revocar el URL eventualmente, pero para visualización rápida así funciona
+            }
         };
 
         document.getElementById('closeModalBtn').addEventListener('click', () => {
@@ -253,15 +292,21 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCalibBtn.addEventListener('click', async () => {
             if (!selectedSerieForEdit) return;
             const newDate = calibDateInput.value;
-            if (!newDate) return;
+            const technician = technicianInput.value;
+            const certificate = certFileInput.files[0] || null;
+
+            if (!newDate) {
+                alert('Por favor selecciona una fecha de calibración.');
+                return;
+            }
 
             try {
-                await storeCalibration(selectedSerieForEdit, newDate);
+                await storeCalibration(selectedSerieForEdit, newDate, technician, certificate);
                 editModal.classList.add('hidden');
                 renderTable();
             } catch (err) {
                 console.error('Error al guardar calibración:', err);
-                alert('No se pudo guardar la fecha.');
+                alert('No se pudo guardar la información.');
             }
         });
     }
@@ -290,7 +335,8 @@ document.addEventListener('DOMContentLoaded', () => {
             allSheetsData[clinic].forEach(row => {
                 const serieKey = Object.keys(row).find(k => k.toLowerCase().includes('serie'));
                 const serie = String(row[serieKey] || '').toUpperCase();
-                const calDateStr = calibrations[serie];
+                const calibObj = calibrations[serie];
+                const calDateStr = calibObj ? calibObj.date : null;
 
                 if (calDateStr) {
                     const calDate = new Date(calDateStr);

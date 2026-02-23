@@ -63,6 +63,8 @@
                             <th>Equipo / Nombre</th>
                             <th>Serie</th>
                             <th>Última Calibración</th>
+                            <th>Técnico</th>
+                            <th>Cert.</th>
                             <th>Estado</th>
                             <th>Acción</th>
                         </tr>
@@ -80,6 +82,15 @@
                 <div class="input-group">
                     <label>Fecha de Calibración</label>
                     <input type="date" id="calibDateInput">
+                </div>
+                <div class="input-group">
+                    <label>Técnico de Calibración</label>
+                    <input type="text" id="technicianInput" placeholder="Nombre del técnico">
+                </div>
+                <div class="input-group">
+                    <label>Certificado (PDF/Imagen)</label>
+                    <input type="file" id="certFileInput" accept=".pdf,image/*">
+                    <p id="certStatus" style="font-size: 0.8rem; color: #666; margin-top: 5px;"></p>
                 </div>
                 <div class="btn-row">
                     <button id="saveCalibBtn" class="btn btn-primary">Guardar</button>
