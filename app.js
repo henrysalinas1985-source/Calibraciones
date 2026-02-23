@@ -20,9 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const calibDateInput = document.getElementById('calibDateInput');
     const ordenMInput = document.getElementById('ordenMInput');
     const technicianInput = document.getElementById('technicianInput');
+    const brandInput = document.getElementById('brandInput');
+    const modelInput = document.getElementById('modelInput');
     const buildingInput = document.getElementById('buildingInput');
     const sectorInput = document.getElementById('sectorInput');
     const locationInput = document.getElementById('locationInput');
+    const addInstrumentBtn = document.getElementById('addInstrumentBtn');
+    const instrumentsContainer = document.getElementById('instrumentsContainer');
     const certFileInput = document.getElementById('certFileInput');
     const certStatus = document.getElementById('certStatus');
     const saveCalibBtn = document.getElementById('saveCalibBtn');
@@ -66,10 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM, building, sector, location };
+        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -255,6 +259,33 @@ document.addEventListener('DOMContentLoaded', () => {
         return { text: 'Vigente', class: 'status-ok' };
     }
 
+    function createInstrumentRow(data = {}) {
+        const div = document.createElement('div');
+        div.className = 'instrument-item';
+        div.innerHTML = `
+            <button type="button" class="remove-instrument">×</button>
+            <input type="text" class="inst-name full-width" placeholder="Instrumental utilizado" value="${data.name || ''}">
+            <input type="text" class="inst-brand" placeholder="Marca" value="${data.brand || ''}">
+            <input type="text" class="inst-model" placeholder="Modelo" value="${data.model || ''}">
+            <input type="text" class="inst-serie" placeholder="N° de serie" value="${data.serie || ''}">
+            <input type="text" class="inst-date" placeholder="Calibración (ej: 02/05/2024)" value="${data.date || ''}">
+        `;
+        div.querySelector('.remove-instrument').onclick = () => div.remove();
+        instrumentsContainer.appendChild(div);
+    }
+
+    addInstrumentBtn.onclick = () => createInstrumentRow();
+
+    function getInstrumentsData() {
+        return Array.from(instrumentsContainer.querySelectorAll('.instrument-item')).map(row => ({
+            name: row.querySelector('.inst-name').value,
+            brand: row.querySelector('.inst-brand').value,
+            model: row.querySelector('.inst-model').value,
+            serie: row.querySelector('.inst-serie').value,
+            date: row.querySelector('.inst-date').value
+        }));
+    }
+
     // === EVENTOS ===
     function setupEventListeners() {
         // Mejorar la interacción de carga: clic en la zona dispara el input
@@ -302,6 +333,16 @@ document.addEventListener('DOMContentLoaded', () => {
             sectorInput.value = existing.sector || getVal(equipmentData, ['sector']);
             locationInput.value = existing.location || getVal(equipmentData, ['ubicación', 'ubicacion']);
 
+            // Marca y Modelo
+            brandInput.value = existing.brand || getVal(equipmentData, ['marca']);
+            modelInput.value = existing.model || getVal(equipmentData, ['modelo']);
+
+            // Limpiar y cargar instrumentos
+            instrumentsContainer.innerHTML = '';
+            if (existing.instruments && existing.instruments.length > 0) {
+                existing.instruments.forEach(inst => createInstrumentRow(inst));
+            }
+
             certFileInput.value = ''; // Limpiar input file
             certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
             document.getElementById('modalSerie').textContent = `Serie: ${serie}`;
@@ -329,6 +370,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const building = buildingInput.value;
             const sector = sectorInput.value;
             const location = locationInput.value;
+            const brand = brandInput.value;
+            const model = modelInput.value;
+            const instruments = getInstrumentsData();
             let certificate = certFileInput.files[0] || null;
 
             if (!newDate) {
@@ -337,7 +381,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // Obtener datos del equipo para el autocompletado del certificado
                 const equipmentData = (allSheetsData[currentClinic] || []).find(row => {
                     const k = Object.keys(row).find(key => key.toLowerCase().includes('serie'));
                     return String(row[k] || '').toUpperCase() === selectedSerieForEdit;
@@ -347,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let certToUpdate = certificate || existingData.certificate;
                 let certName = certificate ? certificate.name : existingData.certName;
 
-                // Si hay un certificado Excel, lo actualizamos preservando formato
                 if (certToUpdate && (certName.toLowerCase().endsWith('.xlsx') || certName.toLowerCase().endsWith('.xls'))) {
                     certificate = await updateExcelCertificate(certToUpdate, {
                         date: newDate,
@@ -356,11 +398,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         equipment: equipmentData,
                         building: building,
                         sector: sector,
-                        location: location
+                        location: location,
+                        brand: brand,
+                        model: model,
+                        instruments: instruments
                     });
                 }
 
-                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location);
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments);
                 editModal.classList.add('hidden');
                 renderTable();
             } catch (err) {
@@ -394,9 +439,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Mapeo según plantilla 2025 (Preservando estilos de celda)
             const updates = {
                 'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
-                'D5': `Modelo: ${getVal(eq, ['modelo'])}`,
+                'D5': `Modelo: ${data.model || ''}`,
                 'A7': `N° serie: ${selectedSerieForEdit}`,
-                'D7': `Marca: ${getVal(eq, ['marca'])}`,
+                'D7': `Marca: ${data.brand || ''}`,
                 'H5': String(data.building || ''),
                 'H6': String(data.sector || ''),
                 'H7': String(data.location || ''),
@@ -404,6 +449,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 'H9': data.ordenM,
                 'H10': data.technician
             };
+
+            // Inyectar instrumentos (Inicia en fila 12)
+            if (data.instruments && data.instruments.length > 0) {
+                data.instruments.forEach((inst, index) => {
+                    const row = 12 + index;
+                    // Limitar a 4 instrumentos para no pisar lo de abajo
+                    if (row < 17) {
+                        const cellA = worksheet.getCell(`A${row}`);
+                        const cellB = worksheet.getCell(`B${row}`);
+                        const cellC = worksheet.getCell(`C${row}`);
+                        const cellD = worksheet.getCell(`D${row}`);
+                        const cellE = worksheet.getCell(`E${row}`);
+
+                        cellA.value = inst.name || '';
+                        cellB.value = inst.brand || '';
+                        cellC.value = inst.model || '';
+                        cellD.value = inst.serie || '';
+                        cellE.value = inst.date || '';
+                    }
+                });
+            }
 
             for (const [cellPos, value] of Object.entries(updates)) {
                 const cell = worksheet.getCell(cellPos);

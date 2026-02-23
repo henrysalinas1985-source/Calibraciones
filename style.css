@@ -137,6 +137,46 @@ h1 {
 }
 
 .table-container {
+
+    /* Instrumental en Modal */
+    .instrument-item {
+        background: #f9f9f9;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        border: 1px solid #eee;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        position: relative;
+    }
+
+    .instrument-item input {
+        height: 28px !important;
+        font-size: 0.8rem !important;
+    }
+
+    .instrument-item .full-width {
+        grid-column: span 2;
+    }
+
+    .remove-instrument {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #ff4d4d;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     overflow-x: auto;
 }
 

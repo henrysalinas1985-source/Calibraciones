@@ -84,9 +84,31 @@
                     <label>Fecha de Calibración</label>
                     <input type="date" id="calibDateInput">
                 </div>
+                <div class="input-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="input-group">
+                        <label>Marca</label>
+                        <input type="text" id="brandInput" placeholder="Marca del equipo">
+                    </div>
+                    <div class="input-group">
+                        <label>Modelo</label>
+                        <input type="text" id="modelInput" placeholder="Modelo del equipo">
+                    </div>
+                </div>
                 <div class="input-group">
                     <label>Orden de Mantenimiento (Orden M)</label>
                     <input type="text" id="ordenMInput" placeholder="Ej: 9230555">
+                </div>
+                <div class="instruments-section" style="margin-top: 20px; border-top: 1px solid #eee; pt: 15px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0; font-size: 0.9rem; color: #333;">Instrumental Utilizado</h4>
+                        <button type="button" id="addInstrumentBtn" class="btn btn-secondary"
+                            style="padding: 4px 8px; font-size: 0.8rem;">+ Añadir</button>
+                    </div>
+                    <div id="instrumentsContainer" class="instruments-list"
+                        style="max-height: 200px; overflow-y: auto;">
+                        <!-- Las filas de instrumentos se generarán aquí -->
+                    </div>
                 </div>
                 <div class="input-group">
                     <label>Técnico de Calibración</label>
