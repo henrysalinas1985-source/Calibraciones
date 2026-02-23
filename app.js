@@ -4,7 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentWorkbook = null;
     let allSheetsData = {};
     let currentClinic = '';
-    let calibrationDates = {}; // { serie: dateString }
+    let calibrationDates = {}; // { serie: { date, technician, etc. } }
+    let instrumentsBank = []; // Unique instruments for autocomplete
 
     const DB_NAME = 'CalibracionesDB';
     const DB_VERSION = 1;
@@ -92,14 +93,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function getAllCalibrations() {
-        return new Promise((resolve) => {
-            const tx = db.transaction('calibrations', 'readonly');
-            const request = tx.objectStore('calibrations').getAll();
-            request.onsuccess = () => {
-                const map = {};
-                request.result.forEach(item => map[item.serie] = item);
-                resolve(map);
-            };
+        calibrationDates = {};
+        const tx = db.transaction('calibrations', 'readonly');
+        const store = tx.objectStore('calibrations');
+        const request = store.openCursor();
+
+        request.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+                calibrationDates[cursor.key] = cursor.value;
+                cursor.continue();
+            } else {
+                updateInstrumentsBank();
+                if (sheetSelector.value) renderTable(); // Changed clinicSelect to sheetSelector
+            }
+        };
+        request.onerror = (e) => console.error("Error getting all calibrations:", e.target.error);
+    }
+
+    function updateInstrumentsBank() {
+        const unique = new Map();
+        Object.values(calibrationDates).forEach(cal => {
+            if (cal.instruments) {
+                cal.instruments.forEach(inst => {
+                    if (inst.name && !unique.has(inst.name.trim().toUpperCase())) {
+                        unique.set(inst.name.trim().toUpperCase(), {
+                            name: inst.name,
+                            brand: inst.brand,
+                            model: inst.model,
+                            serie: inst.serie
+                        });
+                    }
+                });
+            }
+        });
+        instrumentsBank = Array.from(unique.values());
+
+        const datalist = document.getElementById('instrumentsHistory');
+        datalist.innerHTML = '';
+        instrumentsBank.forEach(inst => {
+            const opt = document.createElement('option');
+            opt.value = inst.name;
+            datalist.appendChild(opt);
         });
     }
 
@@ -264,12 +299,24 @@ document.addEventListener('DOMContentLoaded', () => {
         div.className = 'instrument-item';
         div.innerHTML = `
             <button type="button" class="remove-instrument">×</button>
-            <input type="text" class="inst-name full-width" placeholder="Instrumental utilizado" value="${data.name || ''}">
+            <input type="text" class="inst-name full-width" placeholder="Instrumental utilizado" list="instrumentsHistory" value="${data.name || ''}">
             <input type="text" class="inst-brand" placeholder="Marca" value="${data.brand || ''}">
             <input type="text" class="inst-model" placeholder="Modelo" value="${data.model || ''}">
             <input type="text" class="inst-serie" placeholder="N° de serie" value="${data.serie || ''}">
-            <input type="text" class="inst-date" placeholder="Calibración (ej: 02/05/2024)" value="${data.date || ''}">
+            <input type="text" class="inst-date" placeholder="Calibración" value="${data.date || ''}">
         `;
+
+        const nameInput = div.querySelector('.inst-name');
+        nameInput.onchange = () => {
+            const val = nameInput.value.trim().toUpperCase();
+            const found = instrumentsBank.find(i => i.name.toUpperCase() === val);
+            if (found) {
+                div.querySelector('.inst-brand').value = found.brand || '';
+                div.querySelector('.inst-model').value = found.model || '';
+                div.querySelector('.inst-serie').value = found.serie || '';
+            }
+        };
+
         div.querySelector('.remove-instrument').onclick = () => div.remove();
         instrumentsContainer.appendChild(div);
     }
@@ -406,6 +453,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments);
+                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments };
+                updateInstrumentsBank();
+
                 editModal.classList.add('hidden');
                 renderTable();
             } catch (err) {
