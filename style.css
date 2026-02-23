@@ -9,6 +9,7 @@
     --danger: #ff6464;
     --text: #fff;
     --text-dim: #aaa;
+    color-scheme: dark;
 }
 
 * {
@@ -255,6 +256,18 @@ th {
     border: 1px solid var(--border);
     color: #fff;
     border-radius: 8px;
+    outline: none;
+    font-family: inherit;
+}
+
+.input-group input[type="date"] {
+    cursor: pointer;
+    position: relative;
+}
+
+.input-group input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
 }
 
 @media (max-width: 600px) {

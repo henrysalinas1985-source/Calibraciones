@@ -264,6 +264,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         serieFilter.addEventListener('input', renderTable);
 
+        // Forzar apertura del selector de fecha al hacer clic en el input
+        calibDateInput.addEventListener('click', () => {
+            try {
+                if (calibDateInput.showPicker) calibDateInput.showPicker();
+            } catch (e) {
+                console.log('showPicker not supported');
+            }
+        });
+
         // Hacer la función accesible globalmente para el onclick del HTML
         window.openEdit = (serie) => {
             selectedSerieForEdit = serie;
