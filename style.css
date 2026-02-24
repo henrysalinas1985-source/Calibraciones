@@ -137,123 +137,6 @@ h1 {
 }
 
 .table-container {
-
-    /* Instrumental en Modal - Estilo Tarjeta Premium */
-    .instruments-section {
-        margin-top: 25px;
-        padding-top: 15px;
-        border-top: 1px solid #e0e0e0;
-    }
-
-    .instruments-section h4 {
-        color: #1a1a1a;
-        font-weight: 600;
-        letter-spacing: -0.01em;
-    }
-
-    .instruments-list {
-        max-height: 280px;
-        overflow-y: auto;
-        padding-right: 5px;
-        margin-bottom: 15px;
-    }
-
-    /* Scrollbar estilizada */
-    .instruments-list::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .instruments-list::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-
-    .instruments-list::-webkit-scrollbar-thumb {
-        background: #ccc;
-        border-radius: 10px;
-    }
-
-    .instruments-list::-webkit-scrollbar-thumb:hover {
-        background: #999;
-    }
-
-    .instrument-item {
-        background: #ffffff;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 12px;
-        border: 1px solid #e5e7eb;
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        position: relative;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        transition: all 0.2s ease;
-    }
-
-    .instrument-item:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .instrument-item .field-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .instrument-item label {
-        font-size: 10px;
-        text-transform: uppercase;
-        font-weight: 700;
-        color: #6b7280;
-        margin: 0;
-    }
-
-    .instrument-item input {
-        height: 32px !important;
-        padding: 4px 8px !important;
-        font-size: 0.85rem !important;
-        border: 1px solid #d1d5db !important;
-        border-radius: 6px !important;
-        background: #fafafa !important;
-    }
-
-    .instrument-item input:focus {
-        background: #fff !important;
-        border-color: #3b82f6 !important;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
-    }
-
-    .instrument-item .full-width {
-        grid-column: span 4;
-    }
-
-    .remove-instrument {
-        position: absolute;
-        top: -8px;
-        right: -8px;
-        background: #ef4444;
-        color: white;
-        border: 2px solid white;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        font-size: 14px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        z-index: 10;
-        transition: transform 0.2s ease;
-    }
-
-    .remove-instrument:hover {
-        background: #dc2626;
-        transform: scale(1.1);
-    }
-
     overflow-x: auto;
 }
 
@@ -310,23 +193,26 @@ th {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, var(--accent) 0%, #00f2fe 100%);
     color: #000;
+    box-shadow: 0 4px 15px var(--accent-glow);
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
     color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .btn-danger {
-    background: rgba(255, 100, 100, 0.1);
+    background: rgba(255, 100, 100, 0.05);
     color: var(--danger);
-    border: 1px solid var(--danger);
+    border: 1px solid rgba(255, 100, 100, 0.2);
 }
 
 .btn:hover {
     transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
 .hidden {
@@ -410,4 +296,126 @@ table th:nth-child(5),
 table td:nth-child(5) {
     text-align: center;
     width: 60px;
+}
+
+/* === Instrumental en Modal - Estilo Premium Dark === */
+.instruments-section {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+
+.instruments-section h4 {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+}
+
+.instruments-list {
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 8px;
+    margin-bottom: 15px;
+}
+
+/* Scrollbar estilizada */
+.instruments-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.instruments-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.instruments-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.instruments-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+.instrument-item {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(8px);
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 4px solid var(--accent);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.instrument-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(79, 172, 254, 0.3);
+    transform: translateX(4px);
+}
+
+.instrument-item .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.instrument-item label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.instrument-item input {
+    height: 34px !important;
+    padding: 6px 10px !important;
+    font-size: 0.85rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 6px !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    color: #fff !important;
+}
+
+.instrument-item input:focus {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-glow) !important;
+}
+
+.instrument-item .full-width {
+    grid-column: span 4;
+}
+
+.remove-instrument {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255, 100, 100, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(255, 100, 100, 0.2);
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.remove-instrument:hover {
+    background: var(--danger);
+    color: white;
+    opacity: 1;
+    transform: scale(1.1);
 }
