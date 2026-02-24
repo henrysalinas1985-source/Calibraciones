@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ],
         "8.4 Mantenimiento Preventivo": [
             "Limpieza Exterior", "Lubricación", "Reemplazar filtros y Baterías", "Test de Seguridad Eléctrica"
+        ],
+        "9.1 Mediciones en frecuencia": [
+            "30", "40", "60", "80", "90", "100", "120", "140", "160", "180", "200", "220", "240"
         ]
     };
 
@@ -406,34 +409,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('inspectionPointsContainer');
         container.innerHTML = '';
 
-        Object.entries(INSPECTION_SCHEMA).forEach(([category, points]) => {
+        Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
             const header = document.createElement('div');
             header.className = 'inspection-category';
-            header.textContent = category;
+            header.textContent = title;
             container.appendChild(header);
+
+            const isNumeric = title.includes("9.1");
 
             points.forEach(point => {
                 const row = document.createElement('div');
                 row.className = 'inspection-row';
-                const currentVal = savedInspections[point] || 'na'; // Default N/A
+                const label = isNumeric ? `${point} PPM` : point;
 
-                row.innerHTML = `
-                    <div class="inspection-label">${point}</div>
-                    <div class="inspection-options" data-label="${point}">
-                        <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
-                        <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
-                        <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
-                    </div>
-                `;
-
-                // Agregar eventos a las opciones
-                row.querySelectorAll('.inspection-opt').forEach(opt => {
-                    opt.onclick = () => {
-                        row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
-                        opt.classList.add('selected');
-                    };
-                });
-
+                if (isNumeric) {
+                    const currentVal = savedInspections[point] || point; // Default matching the reference
+                    row.innerHTML = `
+                        <div class="inspection-label">${label}</div>
+                        <div class="inspection-options medicion" data-label="${point}" data-type="numeric">
+                            <button type="button" class="btn-step" onclick="this.nextElementSibling.value = parseInt(this.nextElementSibling.value||0)-10">-10</button>
+                            <input type="number" class="inspection-measurement-input" value="${currentVal}" step="10">
+                            <button type="button" class="btn-step" onclick="this.previousElementSibling.value = parseInt(this.previousElementSibling.value||0)+10">+10</button>
+                        </div>
+                    `;
+                } else {
+                    const currentVal = savedInspections[point] || 'na';
+                    row.innerHTML = `
+                        <div class="inspection-label">${label}</div>
+                        <div class="inspection-options" data-label="${point}" data-type="choice">
+                            <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
+                            <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
+                            <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
+                        </div>
+                    `;
+                    row.querySelectorAll('.inspection-opt').forEach(opt => {
+                        opt.onclick = () => {
+                            row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
+                            opt.classList.add('selected');
+                        };
+                    });
+                }
                 container.appendChild(row);
             });
         });
@@ -443,8 +458,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {};
         document.querySelectorAll('.inspection-options').forEach(group => {
             const label = group.dataset.label;
-            const selected = group.querySelector('.inspection-opt.selected');
-            data[label] = selected ? selected.dataset.val : 'na';
+            const type = group.dataset.type;
+            if (type === 'numeric') {
+                data[label] = group.querySelector('input').value;
+            } else {
+                const selected = group.querySelector('.inspection-opt.selected');
+                data[label] = selected ? selected.dataset.val : 'na';
+            }
         });
         return data;
     }
@@ -688,10 +708,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO)
             if (type === 'ELECTROCARDIOGRAFO' && data.inspections) {
                 const schemaMapping = {
-                    "8.1 Test Cualitativo": { startRow: 16 },
-                    "8.2 Test de Aceptación": { startRow: 36 },
-                    "8.3 Test Cuantitativo": { startRow: 41 },
-                    "8.4 Mantenimiento Preventivo": { startRow: 46 }
+                    "8.1 Test Cualitativo": { startRow: 16, step: 1 },
+                    "8.2 Test de Aceptación": { startRow: 36, step: 1 },
+                    "8.3 Test Cuantitativo": { startRow: 41, step: 1 },
+                    "8.4 Mantenimiento Preventivo": { startRow: 46, step: 1 },
+                    "9.1 Mediciones en frecuencia": { startRow: 53, step: 2 }
                 };
 
                 Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
@@ -699,21 +720,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!configInsp) return;
 
                     points.forEach((point, index) => {
-                        const rowIdx = configInsp.startRow + index;
+                        const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
                         const result = data.inspections[point];
 
-                        const cellPaso = worksheet.getCell(`I${rowIdx}`);
-                        const cellFallo = worksheet.getCell(`J${rowIdx}`);
+                        const cellI = worksheet.getCell(`I${rowIdx}`);
 
-                        cellPaso.value = '';
-                        cellFallo.value = '';
+                        if (title.includes("9.1")) {
+                            cellI.value = result;
+                        } else {
+                            const cellJ = worksheet.getCell(`J${rowIdx}`);
+                            cellI.value = '';
+                            cellJ.value = '';
 
-                        if (result === 'si') {
-                            cellPaso.value = 'si';
-                        } else if (result === 'no') {
-                            cellFallo.value = 'X';
-                        } else if (result === 'na') {
-                            cellPaso.value = 'N/A';
+                            if (result === 'si') {
+                                cellI.value = 'si';
+                            } else if (result === 'no') {
+                                cellJ.value = 'X';
+                            } else if (result === 'na') {
+                                cellI.value = 'N/A';
+                            }
                         }
                     });
                 });
