@@ -7,14 +7,25 @@ document.addEventListener('DOMContentLoaded', () => {
     let calibrationDates = {}; // { serie: { date, technician, etc. } }
     let instrumentsBank = []; // Unique instruments for autocomplete
 
-    const INSPECTION_POINTS = [
-        "Chasis", "Montajes", "Frenos del Carro", "Enchufe y Base de Enchufe",
-        "Cable de Red", "Amarres contra tirones", "Interruptores y Fusibles",
-        "Cables de ECG", "Terminales y Conectores", "Electrodos",
-        "Teclas y Mandos de control", "Baterias y su cargador",
-        "Indicadores y Display", "Respuesta de 1 mv", "Etiquetado",
-        "Accesosrios", "Trazado de Calidad", "Transporte del papel"
-    ];
+    const INSPECTION_SCHEMA = {
+        "8.1 Test Cualitativo": [
+            "Chasis", "Montajes", "Frenos del Carro", "Enchufe y Base de Enchufe",
+            "Cable de Red", "Amarres contra tirones", "Interruptores y Fusibles",
+            "Cables de ECG", "Terminales y Conectores", "Electrodos",
+            "Teclas y Mandos de control", "Baterias y su cargador",
+            "Indicadores y Display", "Respuesta de 1 mv", "Etiquetado",
+            "Accesosrios", "Trazado de Calidad", "Transporte del papel"
+        ],
+        "8.2 Test de Aceptación": [
+            "Respuesta", "Factor de Rechazo en Modo común CMRR", "Artefactos"
+        ],
+        "8.3 Test Cuantitativo": [
+            "Calibración", "Linealidad", "Velocidad del papel"
+        ],
+        "8.4 Mantenimiento Preventivo": [
+            "Limpieza Exterior", "Lubricación", "Reemplazar filtros y Baterías", "Test de Seguridad Eléctrica"
+        ]
+    };
 
     const DB_NAME = 'CalibracionesDB';
     const DB_VERSION = 1;
@@ -395,29 +406,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('inspectionPointsContainer');
         container.innerHTML = '';
 
-        INSPECTION_POINTS.forEach(point => {
-            const row = document.createElement('div');
-            row.className = 'inspection-row';
-            const currentVal = savedInspections[point] || 'na'; // Default N/A
+        Object.entries(INSPECTION_SCHEMA).forEach(([category, points]) => {
+            const header = document.createElement('div');
+            header.className = 'inspection-category';
+            header.textContent = category;
+            container.appendChild(header);
 
-            row.innerHTML = `
-                <div class="inspection-label">${point}</div>
-                <div class="inspection-options" data-label="${point}">
-                    <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
-                    <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
-                    <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
-                </div>
-            `;
+            points.forEach(point => {
+                const row = document.createElement('div');
+                row.className = 'inspection-row';
+                const currentVal = savedInspections[point] || 'na'; // Default N/A
 
-            // Agregar eventos a las opciones
-            row.querySelectorAll('.inspection-opt').forEach(opt => {
-                opt.onclick = () => {
-                    row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
-                    opt.classList.add('selected');
-                };
+                row.innerHTML = `
+                    <div class="inspection-label">${point}</div>
+                    <div class="inspection-options" data-label="${point}">
+                        <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
+                        <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
+                        <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
+                    </div>
+                `;
+
+                // Agregar eventos a las opciones
+                row.querySelectorAll('.inspection-opt').forEach(opt => {
+                    opt.onclick = () => {
+                        row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                    };
+                });
+
+                container.appendChild(row);
             });
-
-            container.appendChild(row);
         });
     }
 
@@ -667,29 +685,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO por ahora)
+            // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO)
             if (type === 'ELECTROCARDIOGRAFO' && data.inspections) {
-                // Según la imagen, los puntos de inspección 8.1.1 a 8.1.18 empiezan en fila 16 aprox
-                // Columna I (Pasó) y J (Falló)
-                const START_ROW_INSP = 16;
-                INSPECTION_POINTS.forEach((point, index) => {
-                    const rowIdx = START_ROW_INSP + index;
-                    const result = data.inspections[point];
+                const schemaMapping = {
+                    "8.1 Test Cualitativo": { startRow: 16 },
+                    "8.2 Test de Aceptación": { startRow: 36 },
+                    "8.3 Test Cuantitativo": { startRow: 41 },
+                    "8.4 Mantenimiento Preventivo": { startRow: 46 }
+                };
 
-                    const cellPaso = worksheet.getCell(`I${rowIdx}`);
-                    const cellFallo = worksheet.getCell(`J${rowIdx}`);
+                Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
+                    const configInsp = schemaMapping[title];
+                    if (!configInsp) return;
 
-                    // Limpiar previos
-                    cellPaso.value = '';
-                    cellFallo.value = '';
+                    points.forEach((point, index) => {
+                        const rowIdx = configInsp.startRow + index;
+                        const result = data.inspections[point];
 
-                    if (result === 'si') {
-                        cellPaso.value = 'si';
-                    } else if (result === 'no') {
-                        cellFallo.value = 'X';
-                    } else if (result === 'na') {
-                        cellPaso.value = 'N/A';
-                    }
+                        const cellPaso = worksheet.getCell(`I${rowIdx}`);
+                        const cellFallo = worksheet.getCell(`J${rowIdx}`);
+
+                        cellPaso.value = '';
+                        cellFallo.value = '';
+
+                        if (result === 'si') {
+                            cellPaso.value = 'si';
+                        } else if (result === 'no') {
+                            cellFallo.value = 'X';
+                        } else if (result === 'na') {
+                            cellPaso.value = 'N/A';
+                        }
+                    });
                 });
             }
 
@@ -709,6 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === UTILIDADES ===
     function formatDate(dateStr) {
+        if (!dateStr) return '';
         const d = new Date(dateStr + 'T00:00:00');
         return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }

@@ -430,6 +430,17 @@ th {
     letter-spacing: 0.1em;
 }
 
+.inspection-category {
+    background: rgba(79, 172, 254, 0.1);
+    color: var(--accent);
+    padding: 10px 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+}
+
 .inspection-grid {
     display: flex;
     flex-direction: column;
