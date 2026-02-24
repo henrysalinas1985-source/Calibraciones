@@ -7,6 +7,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let calibrationDates = {}; // { serie: { date, technician, etc. } }
     let instrumentsBank = []; // Unique instruments for autocomplete
 
+    const INSPECTION_POINTS = [
+        "Chasis", "Montajes", "Frenos del Carro", "Enchufe y Base de Enchufe",
+        "Cable de Red", "Amarres contra tirones", "Interruptores y Fusibles",
+        "Cables de ECG", "Terminales y Conectores", "Electrodos",
+        "Teclas y Mandos de control", "Baterias y su cargador",
+        "Indicadores y Display", "Respuesta de 1 mv", "Etiquetado",
+        "Accesosrios", "Trazado de Calidad", "Transporte del papel"
+    ];
+
     const DB_NAME = 'CalibracionesDB';
     const DB_VERSION = 1;
 
@@ -71,10 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments };
+        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -381,6 +390,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     }
 
+    // === LÓGICA DE INSPECCIÓN ===
+    function renderInspectionPoints(savedInspections = {}) {
+        const container = document.getElementById('inspectionPointsContainer');
+        container.innerHTML = '';
+
+        INSPECTION_POINTS.forEach(point => {
+            const row = document.createElement('div');
+            row.className = 'inspection-row';
+            const currentVal = savedInspections[point] || 'na'; // Default N/A
+
+            row.innerHTML = `
+                <div class="inspection-label">${point}</div>
+                <div class="inspection-options" data-label="${point}">
+                    <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
+                    <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
+                    <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
+                </div>
+            `;
+
+            // Agregar eventos a las opciones
+            row.querySelectorAll('.inspection-opt').forEach(opt => {
+                opt.onclick = () => {
+                    row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                };
+            });
+
+            container.appendChild(row);
+        });
+    }
+
+    function getInspectionsData() {
+        const data = {};
+        document.querySelectorAll('.inspection-options').forEach(group => {
+            const label = group.dataset.label;
+            const selected = group.querySelector('.inspection-opt.selected');
+            data[label] = selected ? selected.dataset.val : 'na';
+        });
+        return data;
+    }
+
     // === EVENTOS ===
     function setupEventListeners() {
         // Mejorar la interacción de carga: clic en la zona dispara el input
@@ -432,11 +482,13 @@ document.addEventListener('DOMContentLoaded', () => {
             brandInput.value = existing.brand || getVal(equipmentData, ['marca']);
             modelInput.value = existing.model || getVal(equipmentData, ['modelo']);
 
-            // Limpiar y cargar instrumentos
+            // Limpiar y cargar instrumentos e inspecciones
             instrumentsContainer.innerHTML = '';
             if (existing.instruments && existing.instruments.length > 0) {
                 existing.instruments.forEach(inst => createInstrumentRow(inst));
             }
+
+            renderInspectionPoints(existing.inspections || {});
 
             certFileInput.value = ''; // Limpiar input file
             certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
@@ -468,6 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const brand = brandInput.value;
             const model = modelInput.value;
             const instruments = getInstrumentsData();
+            const inspections = getInspectionsData();
             let certificate = certFileInput.files[0] || null;
 
             if (!newDate) {
@@ -496,12 +549,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         location: location,
                         brand: brand,
                         model: model,
-                        instruments: instruments
+                        instruments: instruments,
+                        inspections: inspections
                     });
                 }
 
-                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments);
-                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments };
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections);
+                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections };
                 updateInstrumentsBank();
 
                 editModal.classList.add('hidden');
@@ -609,6 +663,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         worksheet.getCell(`C${row}`).value = inst.model || '';
                         worksheet.getCell(`D${row}`).value = inst.serie || '';
                         worksheet.getCell(`E${row}`).value = inst.date || '';
+                    }
+                });
+            }
+
+            // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO por ahora)
+            if (type === 'ELECTROCARDIOGRAFO' && data.inspections) {
+                // Según la imagen, los puntos de inspección 8.1.1 a 8.1.18 empiezan en fila 16 aprox
+                // Columna I (Pasó) y J (Falló)
+                const START_ROW_INSP = 16;
+                INSPECTION_POINTS.forEach((point, index) => {
+                    const rowIdx = START_ROW_INSP + index;
+                    const result = data.inspections[point];
+
+                    const cellPaso = worksheet.getCell(`I${rowIdx}`);
+                    const cellFallo = worksheet.getCell(`J${rowIdx}`);
+
+                    // Limpiar previos
+                    cellPaso.value = '';
+                    cellFallo.value = '';
+
+                    if (result === 'si') {
+                        cellPaso.value = 'si';
+                    } else if (result === 'no') {
+                        cellFallo.value = 'X';
+                    } else if (result === 'na') {
+                        cellPaso.value = 'N/A';
                     }
                 });
             }
