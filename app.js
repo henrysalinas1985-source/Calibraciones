@@ -519,13 +519,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const arrayBuffer = await originalBlob.arrayBuffer();
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
-            const worksheet = workbook.worksheets[0]; // Primera hoja
+            const worksheet = workbook.worksheets[0];
 
             if (!worksheet) {
                 throw new Error('No se encontró la primera hoja en el certificado.');
             }
 
-            // Helper para encontrar keys dinámicamente
             const getVal = (row, words) => {
                 if (!row) return '';
                 const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
@@ -533,55 +532,92 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const eq = data.equipment || {};
+            const eqName = (getVal(eq, ['equipo', 'nombre']) || '').toUpperCase();
 
-            // Mapeo según plantilla 2025 (Preservando estilos de celda)
-            const updates = {
-                'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
-                'D5': `Modelo: ${data.model || ''}`,
-                'A7': `N° serie: ${selectedSerieForEdit}`,
-                'D7': `Marca: ${data.brand || ''}`,
-                'H5': String(data.building || ''),
-                'H6': String(data.sector || ''),
-                'H7': String(data.location || ''),
-                'H8': formatDate(data.date),
-                'H9': data.ordenM,
-                'H10': data.technician
+            // Configuración de Mapeos Dinámicos
+            const CONFIG_TEMPLATES = {
+                'ELECTROCARDIOGRAFO': {
+                    cells: {
+                        'brand': 'D7',
+                        'model': 'D5',
+                        'serie': 'A7',
+                        'equipment': 'A5',
+                        'building': 'H5',
+                        'sector': 'H6',
+                        'location': 'H7',
+                        'date': 'H8',
+                        'ordenM': 'H9',
+                        'technician': 'H10'
+                    },
+                    instrumentsStartRow: 12,
+                    instrumentsMaxRows: 4
+                },
+                'DEFAULT': {
+                    cells: {
+                        'brand': 'D7',
+                        'model': 'D5',
+                        'serie': 'A7',
+                        'equipment': 'A5',
+                        'building': 'H5',
+                        'sector': 'H6',
+                        'location': 'H7',
+                        'date': 'H8',
+                        'ordenM': 'H9',
+                        'technician': 'H10'
+                    },
+                    instrumentsStartRow: 12,
+                    instrumentsMaxRows: 5
+                }
             };
 
-            // Inyectar instrumentos (Inicia en fila 12)
-            if (data.instruments && data.instruments.length > 0) {
-                data.instruments.forEach((inst, index) => {
-                    const row = 12 + index;
-                    // Limitar a 4 instrumentos para no pisar lo de abajo
-                    if (row < 17) {
-                        const cellA = worksheet.getCell(`A${row}`);
-                        const cellB = worksheet.getCell(`B${row}`);
-                        const cellC = worksheet.getCell(`C${row}`);
-                        const cellD = worksheet.getCell(`D${row}`);
-                        const cellE = worksheet.getCell(`E${row}`);
+            // Detectar plantilla
+            const type = Object.keys(CONFIG_TEMPLATES).find(key => eqName.includes(key)) || 'DEFAULT';
+            const config = CONFIG_TEMPLATES[type];
+            const c = config.cells;
 
-                        cellA.value = inst.name || '';
-                        cellB.value = inst.brand || '';
-                        cellC.value = inst.model || '';
-                        cellD.value = inst.serie || '';
-                        cellE.value = inst.date || '';
-                    }
-                });
-            }
+            console.log(`Aplicando plantilla tipo: ${type}`);
+
+            // 1. Actualizar Datos del Equipo y Generales
+            const updates = {
+                [c.equipment]: `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
+                [c.model]: `Modelo: ${data.model || ''}`,
+                [c.serie]: `N° serie: ${selectedSerieForEdit}`,
+                [c.brand]: `Marca: ${data.brand || ''}`,
+                [c.building]: String(data.building || ''),
+                [c.sector]: String(data.sector || ''),
+                [c.location]: String(data.location || ''),
+                [c.date]: formatDate(data.date),
+                [c.ordenM]: String(data.ordenM || ''),
+                [c.technician]: String(data.technician || '')
+            };
 
             for (const [cellPos, value] of Object.entries(updates)) {
+                if (!cellPos) continue;
                 const cell = worksheet.getCell(cellPos);
-                // Intentamos preservar el estilo original de la celda antes de cambiar el valor
                 const currentStyle = cell.style;
                 cell.value = value;
                 cell.style = currentStyle;
+            }
+
+            // 2. Inyectar instrumentos
+            if (data.instruments && data.instruments.length > 0) {
+                data.instruments.forEach((inst, index) => {
+                    const row = config.instrumentsStartRow + index;
+                    if (index < config.instrumentsMaxRows) {
+                        worksheet.getCell(`A${row}`).value = inst.name || '';
+                        worksheet.getCell(`B${row}`).value = inst.brand || '';
+                        worksheet.getCell(`C${row}`).value = inst.model || '';
+                        worksheet.getCell(`D${row}`).value = inst.serie || '';
+                        worksheet.getCell(`E${row}`).value = inst.date || '';
+                    }
+                });
             }
 
             const buffer = await workbook.xlsx.writeBuffer();
             return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         } catch (err) {
             console.error('Error en updateExcelCertificate:', err);
-            throw err; // Propagar al llamador para mostrar el alert
+            throw err;
         }
     }
 
