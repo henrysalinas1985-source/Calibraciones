@@ -17,13 +17,16 @@ document.addEventListener('DOMContentLoaded', () => {
             "Accesosrios", "Trazado de Calidad", "Transporte del papel"
         ],
         "8.2 Test de Aceptación": [
-            "Respuesta", "Factor de Rechazo en Modo común CMRR", "Artefactos"
+            "Repuesta", "Factor de Rechazo en Modo común CMRR", "Artefactos"
         ],
         "8.3 Test Cuantitativo": [
             "Calibración", "Linealidad", "Velocidad del papel"
         ],
         "8.4 Mantenimiento Preventivo": [
-            "Limpieza Exterior", "Lubricación", "Reemplazar filtros y Baterías", "Test de Seguridad Eléctrica"
+            "Limpieza Exterior", "Lubricacion", "Reemplazar filtros y Baterias", "Test de Seguridad Electrica"
+        ],
+        "9.1 Mediciones en frecuencia": [
+            "30", "40", "60", "80", "90", "100", "120", "140", "160", "180", "200", "220", "240"
         ]
     };
 
@@ -406,34 +409,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('inspectionPointsContainer');
         container.innerHTML = '';
 
-        Object.entries(INSPECTION_SCHEMA).forEach(([category, points]) => {
+        Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
             const header = document.createElement('div');
             header.className = 'inspection-category';
-            header.textContent = category;
+            header.textContent = title;
             container.appendChild(header);
+
+            const isNumeric = title.includes("9.1");
 
             points.forEach(point => {
                 const row = document.createElement('div');
                 row.className = 'inspection-row';
-                const currentVal = savedInspections[point] || 'na'; // Default N/A
+                const label = isNumeric ? `${point} PPM` : point;
 
-                row.innerHTML = `
-                    <div class="inspection-label">${point}</div>
-                    <div class="inspection-options" data-label="${point}">
-                        <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
-                        <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
-                        <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
-                    </div>
-                `;
-
-                // Agregar eventos a las opciones
-                row.querySelectorAll('.inspection-opt').forEach(opt => {
-                    opt.onclick = () => {
-                        row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
-                        opt.classList.add('selected');
-                    };
-                });
-
+                if (isNumeric) {
+                    const currentVal = savedInspections[point] || point; // Default matching the reference
+                    row.innerHTML = `
+                        <div class="inspection-label">${label}</div>
+                        <div class="inspection-options medicion" data-label="${point}" data-type="numeric">
+                            <button type="button" class="btn-step" onclick="this.nextElementSibling.value = parseInt(this.nextElementSibling.value||0)-10">-10</button>
+                            <input type="number" class="inspection-measurement-input" value="${currentVal}" step="10">
+                            <button type="button" class="btn-step" onclick="this.previousElementSibling.value = parseInt(this.previousElementSibling.value||0)+10">+10</button>
+                        </div>
+                    `;
+                } else {
+                    const currentVal = savedInspections[point] || 'na';
+                    row.innerHTML = `
+                        <div class="inspection-label">${label}</div>
+                        <div class="inspection-options" data-label="${point}" data-type="choice">
+                            <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
+                            <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
+                            <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
+                        </div>
+                    `;
+                    row.querySelectorAll('.inspection-opt').forEach(opt => {
+                        opt.onclick = () => {
+                            row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
+                            opt.classList.add('selected');
+                        };
+                    });
+                }
                 container.appendChild(row);
             });
         });
@@ -443,9 +458,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {};
         document.querySelectorAll('.inspection-options').forEach(group => {
             const label = group.dataset.label;
-            const selected = group.querySelector('.inspection-opt.selected');
-            data[label] = selected ? selected.dataset.val : 'na';
+            const type = group.dataset.type;
+            if (type === 'numeric') {
+                const input = group.querySelector('input');
+                data[label] = input ? input.value : '';
+            } else {
+                const selected = group.querySelector('.inspection-opt.selected');
+                data[label] = selected ? selected.dataset.val : 'na';
+            }
         });
+        console.log("Datos de inspección capturados:", data);
         return data;
     }
 
@@ -642,12 +664,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            // Detectar plantilla
-            const type = Object.keys(CONFIG_TEMPLATES).find(key => eqName.includes(key)) || 'DEFAULT';
+            // Detectar plantilla con normalización
+            const normalize = (text) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            const normalizedEqName = normalize(eqName);
+
+            const type = Object.keys(CONFIG_TEMPLATES).find(key => normalizedEqName.includes(normalize(key))) || 'DEFAULT';
             const config = CONFIG_TEMPLATES[type];
             const c = config.cells;
 
-            console.log(`Aplicando plantilla tipo: ${type}`);
+            console.log(`Aplicando plantilla tipo: ${type} (Original: ${eqName})`);
 
             // 1. Actualizar Datos del Equipo y Generales
             const updates = {
@@ -669,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currentStyle = cell.style;
                 cell.value = value;
                 cell.style = currentStyle;
+                console.log(`Excel Update: ${cellPos} = ${value}`);
             }
 
             // 2. Inyectar instrumentos
@@ -685,13 +711,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO)
-            if (type === 'ELECTROCARDIOGRAFO' && data.inspections) {
+            // 3. Inyectar Puntos de Inspección (Habilitado para todos si hay datos)
+            if (data.inspections) {
+                console.log("Iniciando inyección de inspecciones en Excel...");
                 const schemaMapping = {
-                    "8.1 Test Cualitativo": { startRow: 16 },
-                    "8.2 Test de Aceptación": { startRow: 36 },
-                    "8.3 Test Cuantitativo": { startRow: 41 },
-                    "8.4 Mantenimiento Preventivo": { startRow: 46 }
+                    "8.1 Test Cualitativo": { startRow: 16, step: 1 },
+                    "8.2 Test de Aceptación": { startRow: 36, step: 1 },
+                    "8.3 Test Cuantitativo": { startRow: 41, step: 1 },
+                    "8.4 Mantenimiento Preventivo": { startRow: 46, step: 1 },
+                    "9.1 Mediciones en frecuencia": { startRow: 54, step: 3 } // Fila 54 es el primer valor, salto de 3 (Etiqueta, "Valor medido", Valor)
                 };
 
                 Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
@@ -699,24 +727,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!configInsp) return;
 
                     points.forEach((point, index) => {
-                        const rowIdx = configInsp.startRow + index;
-                        const result = data.inspections[point];
+                        const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
+                        let result = data.inspections[point];
 
-                        const cellPaso = worksheet.getCell(`I${rowIdx}`);
-                        const cellFallo = worksheet.getCell(`J${rowIdx}`);
+                        // Normalizar resultado
+                        if (result === undefined || result === null) result = 'na';
 
-                        cellPaso.value = '';
-                        cellFallo.value = '';
+                        const cellI = worksheet.getCell(`I${rowIdx}`);
+                        const cellJ = worksheet.getCell(`J${rowIdx}`);
 
-                        if (result === 'si') {
-                            cellPaso.value = 'si';
-                        } else if (result === 'no') {
-                            cellFallo.value = 'X';
-                        } else if (result === 'na') {
-                            cellPaso.value = 'N/A';
+                        // Limpiar celdas antes de escribir
+                        cellI.value = null;
+                        cellJ.value = null;
+
+                        if (title.includes("9.1")) {
+                            // Para mediciones, escribir el valor directamente (o NA)
+                            cellI.value = (result === 'na' || result === '') ? 'N/A' : result;
+                            console.log(`Excel Insp (9.1): I${rowIdx} = ${cellI.value}`);
+                        } else {
+                            const val = String(result).toLowerCase().trim();
+                            if (val === 'si' || val === 'sí') {
+                                cellI.value = 'X';
+                            } else if (val === 'no') {
+                                cellJ.value = 'X';
+                            } else if (val === 'na') {
+                                cellI.value = 'N/A';
+                            }
+                            console.log(`Excel Insp (${title}): I${rowIdx}=${cellI.value}, J${rowIdx}=${cellJ.value} (Original: ${result})`);
                         }
                     });
                 });
+                console.log("Inyección de inspecciones finalizada.");
             }
 
             const buffer = await workbook.xlsx.writeBuffer();
