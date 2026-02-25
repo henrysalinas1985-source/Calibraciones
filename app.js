@@ -17,13 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
             "Accesosrios", "Trazado de Calidad", "Transporte del papel"
         ],
         "8.2 Test de Aceptación": [
-            "Respuesta", "Factor de Rechazo en Modo común CMRR", "Artefactos"
+            "Repuesta", "Factor de Rechazo en Modo común CMRR", "Artefactos"
         ],
         "8.3 Test Cuantitativo": [
             "Calibración", "Linealidad", "Velocidad del papel"
         ],
         "8.4 Mantenimiento Preventivo": [
-            "Limpieza Exterior", "Lubricación", "Reemplazar filtros y Baterías", "Test de Seguridad Eléctrica"
+            "Limpieza Exterior", "Lubricacion", "Reemplazar filtros y Baterias", "Test de Seguridad Electrica"
         ],
         "9.1 Mediciones en frecuencia": [
             "30", "40", "60", "80", "90", "100", "120", "140", "160", "180", "200", "220", "240"
@@ -460,12 +460,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const label = group.dataset.label;
             const type = group.dataset.type;
             if (type === 'numeric') {
-                data[label] = group.querySelector('input').value;
+                const input = group.querySelector('input');
+                data[label] = input ? input.value : '';
             } else {
                 const selected = group.querySelector('.inspection-opt.selected');
                 data[label] = selected ? selected.dataset.val : 'na';
             }
         });
+        console.log("Datos de inspección capturados:", data);
         return data;
     }
 
@@ -708,14 +710,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 3. Inyectar Puntos de Inspección (Habilitado para todos si hay datos, o específico por tipo)
+            // 3. Inyectar Puntos de Inspección (Habilitado para todos si hay datos)
             if (data.inspections) {
+                console.log("Iniciando inyección de inspecciones en Excel...");
                 const schemaMapping = {
                     "8.1 Test Cualitativo": { startRow: 16, step: 1 },
                     "8.2 Test de Aceptación": { startRow: 36, step: 1 },
                     "8.3 Test Cuantitativo": { startRow: 41, step: 1 },
                     "8.4 Mantenimiento Preventivo": { startRow: 46, step: 1 },
-                    "9.1 Mediciones en frecuencia": { startRow: 53, step: 2 }
+                    "9.1 Mediciones en frecuencia": { startRow: 54, step: 2 } // Ajustado a 54 para evitar sobreescribir etiquetas
                 };
 
                 Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
@@ -724,28 +727,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     points.forEach((point, index) => {
                         const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
-                        const result = data.inspections[point];
+                        let result = data.inspections[point];
+
+                        // Normalizar resultado
+                        if (result === undefined || result === null) result = 'na';
 
                         const cellI = worksheet.getCell(`I${rowIdx}`);
                         const cellJ = worksheet.getCell(`J${rowIdx}`);
 
-                        // Limpiar antes de inyectar para evitar duplicados visuales en la plantilla
+                        // Limpiar celdas antes de escribir
                         cellI.value = null;
                         cellJ.value = null;
 
                         if (title.includes("9.1")) {
-                            cellI.value = result;
+                            // Para mediciones, escribir el valor directamente (o NA)
+                            cellI.value = (result === 'na' || result === '') ? 'N/A' : result;
                         } else {
-                            if (result === 'si') {
+                            const val = String(result).toLowerCase().trim();
+                            if (val === 'si' || val === 'sí') {
                                 cellI.value = 'X';
-                            } else if (result === 'no') {
+                            } else if (val === 'no') {
                                 cellJ.value = 'X';
-                            } else if (result === 'na') {
+                            } else if (val === 'na') {
                                 cellI.value = 'N/A';
                             }
                         }
                     });
                 });
+                console.log("Inyección de inspecciones finalizada.");
             }
 
             const buffer = await workbook.xlsx.writeBuffer();
