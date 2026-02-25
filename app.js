@@ -718,7 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     "8.2 Test de Aceptación": { startRow: 36, step: 1 },
                     "8.3 Test Cuantitativo": { startRow: 41, step: 1 },
                     "8.4 Mantenimiento Preventivo": { startRow: 46, step: 1 },
-                    "9.1 Mediciones en frecuencia": { startRow: 54, step: 2 } // Ajustado a 54 para evitar sobreescribir etiquetas
+                    "9.1 Mediciones en frecuencia": { startRow: 55, step: 3 } // Fila 55 es el primer valor, salto de 3 (Etiqueta, "Valor medido", Valor)
                 };
 
                 Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
