@@ -79,12 +79,12 @@
         <div id="editModal" class="modal-overlay hidden">
             <div class="modal">
                 <h3 id="modalTitle">Actualizar Calibración</h3>
-                <p id="modalSerie" style="text-align: center; color: #888; font-size: 0.9rem; margin-bottom: 20px;"></p>
+                <p id="modalSerie"></p>
                 <div class="input-group">
                     <label>Fecha de Calibración</label>
                     <input type="date" id="calibDateInput">
                 </div>
-                <div class="input-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="input-grid">
                     <div class="input-group">
                         <label>Marca</label>
                         <input type="text" id="brandInput" placeholder="Marca del equipo">
@@ -98,24 +98,29 @@
                     <label>Orden de Mantenimiento (Orden M)</label>
                     <input type="text" id="ordenMInput" placeholder="Ej: 9230555">
                 </div>
-                <div class="instruments-section"
-                    style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin: 0; font-size: 0.9rem; color: #333;">Instrumental Utilizado</h4>
-                        <button type="button" id="addInstrumentBtn" class="btn btn-secondary"
-                            style="padding: 4px 8px; font-size: 0.8rem;">+ Añadir</button>
+                <div class="instruments-section">
+                    <div class="instruments-header">
+                        <h4>Instrumental Utilizado</h4>
+                        <button type="button" id="addInstrumentBtn" class="btn btn-secondary btn-small">+
+                            Añadir</button>
                     </div>
-                    <div id="instrumentsContainer" class="instruments-list"
-                        style="max-height: 200px; overflow-y: auto;">
+                    <div id="instrumentsContainer" class="instruments-list">
                         <!-- Las filas de instrumentos se generarán aquí -->
+                    </div>
+                </div>
+
+                <!-- Sección: Puntos de Inspección -->
+                <div class="inspection-section">
+                    <h4>Puntos de Inspección (Test Cualitativo)</h4>
+                    <div id="inspectionPointsContainer" class="inspection-grid">
+                        <!-- Generado por JS -->
                     </div>
                 </div>
                 <div class="input-group">
                     <label>Técnico de Calibración</label>
                     <input type="text" id="technicianInput" placeholder="Nombre del técnico">
                 </div>
-                <div class="input-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="input-grid">
                     <div class="input-group">
                         <label>Edificio</label>
                         <input type="text" id="buildingInput" placeholder="Ej: Barrio Parque">
@@ -132,7 +137,7 @@
                 <div class="input-group">
                     <label>Certificado (PDF/Imagen/Excel)</label>
                     <input type="file" id="certFileInput" accept=".pdf,.xlsx,.xls,image/*">
-                    <p id="certStatus" style="font-size: 0.8rem; color: #666; margin-top: 5px;"></p>
+                    <p id="certStatus"></p>
                 </div>
                 <div class="btn-row">
                     <button id="saveCalibBtn" class="btn btn-primary">Guardar</button>

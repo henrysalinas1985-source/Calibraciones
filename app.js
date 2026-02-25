@@ -7,6 +7,26 @@ document.addEventListener('DOMContentLoaded', () => {
     let calibrationDates = {}; // { serie: { date, technician, etc. } }
     let instrumentsBank = []; // Unique instruments for autocomplete
 
+    const INSPECTION_SCHEMA = {
+        "8.1 Test Cualitativo": [
+            "Chasis", "Montajes", "Frenos del Carro", "Enchufe y Base de Enchufe",
+            "Cable de Red", "Amarres contra tirones", "Interruptores y Fusibles",
+            "Cables de ECG", "Terminales y Conectores", "Electrodos",
+            "Teclas y Mandos de control", "Baterias y su cargador",
+            "Indicadores y Display", "Respuesta de 1 mv", "Etiquetado",
+            "Accesosrios", "Trazado de Calidad", "Transporte del papel"
+        ],
+        "8.2 Test de Aceptación": [
+            "Respuesta", "Factor de Rechazo en Modo común CMRR", "Artefactos"
+        ],
+        "8.3 Test Cuantitativo": [
+            "Calibración", "Linealidad", "Velocidad del papel"
+        ],
+        "8.4 Mantenimiento Preventivo": [
+            "Limpieza Exterior", "Lubricación", "Reemplazar filtros y Baterías", "Test de Seguridad Eléctrica"
+        ]
+    };
+
     const DB_NAME = 'CalibracionesDB';
     const DB_VERSION = 1;
 
@@ -71,10 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments };
+        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -92,50 +112,70 @@ document.addEventListener('DOMContentLoaded', () => {
         store.put(data);
     }
 
-    async function getAllCalibrations() {
-        calibrationDates = {};
-        const tx = db.transaction('calibrations', 'readonly');
-        const store = tx.objectStore('calibrations');
-        const request = store.openCursor();
-
-        request.onsuccess = (e) => {
-            const cursor = e.target.result;
-            if (cursor) {
-                calibrationDates[cursor.key] = cursor.value;
-                cursor.continue();
-            } else {
-                updateInstrumentsBank();
-                if (sheetSelector.value) renderTable(); // Changed clinicSelect to sheetSelector
+    function getAllCalibrations() {
+        console.log("Obteniendo todas las calibraciones...");
+        return new Promise((resolve) => {
+            if (!db) {
+                console.warn("DB no inicializada.");
+                resolve({});
+                return;
             }
-        };
-        request.onerror = (e) => console.error("Error getting all calibrations:", e.target.error);
+            const map = {};
+            const tx = db.transaction('calibrations', 'readonly');
+            const store = tx.objectStore('calibrations');
+            const request = store.openCursor();
+
+            request.onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    map[cursor.key] = cursor.value;
+                    cursor.continue();
+                } else {
+                    console.log("Calibraciones cargadas:", Object.keys(map).length);
+                    calibrationDates = map;
+                    updateInstrumentsBank();
+                    resolve(map);
+                }
+            };
+            request.onerror = (e) => {
+                console.error("Error al obtener calibraciones:", e.target.error);
+                resolve({});
+            };
+        });
     }
 
     function updateInstrumentsBank() {
+        console.log("Actualizando banco de instrumentos...");
         const unique = new Map();
-        Object.values(calibrationDates).forEach(cal => {
-            if (cal.instruments) {
-                cal.instruments.forEach(inst => {
-                    if (inst.name && !unique.has(inst.name.trim().toUpperCase())) {
-                        unique.set(inst.name.trim().toUpperCase(), {
-                            name: inst.name,
-                            brand: inst.brand,
-                            model: inst.model,
-                            serie: inst.serie
-                        });
-                    }
+        try {
+            Object.values(calibrationDates).forEach(cal => {
+                if (cal && cal.instruments) {
+                    cal.instruments.forEach(inst => {
+                        if (inst.name && !unique.has(inst.name.trim().toUpperCase())) {
+                            unique.set(inst.name.trim().toUpperCase(), {
+                                name: inst.name,
+                                brand: inst.brand,
+                                model: inst.model,
+                                serie: inst.serie
+                            });
+                        }
+                    });
+                }
+            });
+            instrumentsBank = Array.from(unique.values());
+
+            const datalist = document.getElementById('instrumentsHistory');
+            if (datalist) {
+                datalist.innerHTML = '';
+                instrumentsBank.forEach(inst => {
+                    const opt = document.createElement('option');
+                    opt.value = inst.name;
+                    datalist.appendChild(opt);
                 });
             }
-        });
-        instrumentsBank = Array.from(unique.values());
-
-        const datalist = document.getElementById('instrumentsHistory');
-        datalist.innerHTML = '';
-        instrumentsBank.forEach(inst => {
-            const opt = document.createElement('option');
-            opt.value = inst.name;
-            datalist.appendChild(opt);
-        });
+        } catch (err) {
+            console.error("Error en updateInstrumentsBank:", err);
+        }
     }
 
     // === LÓGICA DE EXCEL ===
@@ -234,49 +274,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === RENDERIZADO ===
     async function renderTable() {
-        if (!currentClinic || !allSheetsData[currentClinic]) return;
+        console.log("Renderizando tabla para:", currentClinic);
+        if (!currentClinic || !allSheetsData[currentClinic]) {
+            console.warn("Faltan datos de hoja o clínica.");
+            return;
+        }
 
-        calibrationDates = await getAllCalibrations();
+        await getAllCalibrations();
         const data = allSheetsData[currentClinic];
         const searchTerm = serieFilter.value.trim().toUpperCase();
 
         equiposTableBody.innerHTML = '';
         let stats = { total: 0, warning: 0, danger: 0 };
 
+        console.log("Filas a procesar:", data.length);
+
         data.forEach(row => {
-            const serieKey = Object.keys(row).find(k => k.toLowerCase().includes('serie'));
-            const nombreKey = Object.keys(row).find(k => k.toLowerCase().includes('equipo') || k.toLowerCase().includes('nombre'));
+            try {
+                const keys = Object.keys(row);
+                const serieKey = keys.find(k => k.toLowerCase().includes('serie'));
+                const nombreKey = keys.find(k => k.toLowerCase().includes('equipo') || k.toLowerCase().includes('nombre'));
 
-            const serie = String(row[serieKey] || '').toUpperCase();
-            if (searchTerm && !serie.includes(searchTerm)) return;
+                const serie = serieKey ? String(row[serieKey] || '').toUpperCase() : 'N/A';
+                if (searchTerm && !serie.includes(searchTerm)) return;
 
-            stats.total++;
-            const calibObj = calibrationDates[serie] || null;
-            const calibDate = calibObj ? calibObj.date : null;
-            const status = getStatus(calibDate);
-            if (status.class === 'status-warning') stats.warning++;
-            if (status.class === 'status-danger') stats.danger++;
+                stats.total++;
+                const calibObj = calibrationDates[serie] || null;
+                const calibDate = calibObj ? calibObj.date : null;
+                const status = getStatus(calibDate);
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row[nombreKey] || 'N/A'}</td>
-                <td>${serie || 'N/A'}</td>
-                <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
-                <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
-                <td>
-                    ${calibObj && calibObj.certificate ?
-                    `<button class="btn btn-small" title="Ver Certificado" onclick="window.viewCert('${serie}')">📄</button>` :
-                    '-'}
-                </td>
-                <td><span class="status-badge ${status.class}">${status.text}</span></td>
-                <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
-            `;
-            equiposTableBody.appendChild(tr);
+                if (status.class === 'status-warning') stats.warning++;
+                if (status.class === 'status-danger') stats.danger++;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${nombreKey ? (row[nombreKey] || 'N/A') : 'N/A'}</td>
+                    <td>${serie}</td>
+                    <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
+                    <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
+                    <td>
+                        ${calibObj && calibObj.certificate ?
+                        `<button class="btn btn-small" title="Ver Certificado" onclick="window.viewCert('${serie}')">📄</button>` :
+                        '-'}
+                    </td>
+                    <td><span class="status-badge ${status.class}">${status.text}</span></td>
+                    <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
+                `;
+                equiposTableBody.appendChild(tr);
+            } catch (err) {
+                console.error("Error procesando fila:", err, row);
+            }
         });
 
         totalEquiposEl.textContent = stats.total;
         cercaVencerEl.textContent = stats.warning;
         vencidosEl.textContent = stats.danger;
+        console.log("Render completo. Total:", stats.total);
     }
 
     function getStatus(dateStr) {
@@ -298,12 +351,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div');
         div.className = 'instrument-item';
         div.innerHTML = `
-            <button type="button" class="remove-instrument">×</button>
-            <input type="text" class="inst-name full-width" placeholder="Instrumental utilizado" list="instrumentsHistory" value="${data.name || ''}">
-            <input type="text" class="inst-brand" placeholder="Marca" value="${data.brand || ''}">
-            <input type="text" class="inst-model" placeholder="Modelo" value="${data.model || ''}">
-            <input type="text" class="inst-serie" placeholder="N° de serie" value="${data.serie || ''}">
-            <input type="text" class="inst-date" placeholder="Calibración" value="${data.date || ''}">
+            <button type="button" class="remove-instrument" title="Eliminar instrumento">×</button>
+            <div class="field-group full-width">
+                <label>Nombre del Instrumental</label>
+                <input type="text" class="inst-name" placeholder="Ej: MULTIPARAMETRICO SIMULADOR" list="instrumentsHistory" value="${data.name || ''}">
+            </div>
+            <div class="field-group">
+                <label>Marca</label>
+                <input type="text" class="inst-brand" placeholder="Marca" value="${data.brand || ''}">
+            </div>
+            <div class="field-group">
+                <label>Modelo</label>
+                <input type="text" class="inst-model" placeholder="Modelo" value="${data.model || ''}">
+            </div>
+            <div class="field-group">
+                <label>N° de Serie</label>
+                <input type="text" class="inst-serie" placeholder="N° de serie" value="${data.serie || ''}">
+            </div>
+            <div class="field-group">
+                <label>Últ. Calibración</label>
+                <input type="text" class="inst-date" placeholder="DD/MM/YYYY" value="${data.date || ''}">
+            </div>
         `;
 
         const nameInput = div.querySelector('.inst-name');
@@ -331,6 +399,54 @@ document.addEventListener('DOMContentLoaded', () => {
             serie: row.querySelector('.inst-serie').value,
             date: row.querySelector('.inst-date').value
         }));
+    }
+
+    // === LÓGICA DE INSPECCIÓN ===
+    function renderInspectionPoints(savedInspections = {}) {
+        const container = document.getElementById('inspectionPointsContainer');
+        container.innerHTML = '';
+
+        Object.entries(INSPECTION_SCHEMA).forEach(([category, points]) => {
+            const header = document.createElement('div');
+            header.className = 'inspection-category';
+            header.textContent = category;
+            container.appendChild(header);
+
+            points.forEach(point => {
+                const row = document.createElement('div');
+                row.className = 'inspection-row';
+                const currentVal = savedInspections[point] || 'na'; // Default N/A
+
+                row.innerHTML = `
+                    <div class="inspection-label">${point}</div>
+                    <div class="inspection-options" data-label="${point}">
+                        <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
+                        <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
+                        <div class="inspection-opt ${currentVal === 'na' ? 'selected' : ''}" data-val="na">N/A</div>
+                    </div>
+                `;
+
+                // Agregar eventos a las opciones
+                row.querySelectorAll('.inspection-opt').forEach(opt => {
+                    opt.onclick = () => {
+                        row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                    };
+                });
+
+                container.appendChild(row);
+            });
+        });
+    }
+
+    function getInspectionsData() {
+        const data = {};
+        document.querySelectorAll('.inspection-options').forEach(group => {
+            const label = group.dataset.label;
+            const selected = group.querySelector('.inspection-opt.selected');
+            data[label] = selected ? selected.dataset.val : 'na';
+        });
+        return data;
     }
 
     // === EVENTOS ===
@@ -384,11 +500,13 @@ document.addEventListener('DOMContentLoaded', () => {
             brandInput.value = existing.brand || getVal(equipmentData, ['marca']);
             modelInput.value = existing.model || getVal(equipmentData, ['modelo']);
 
-            // Limpiar y cargar instrumentos
+            // Limpiar y cargar instrumentos e inspecciones
             instrumentsContainer.innerHTML = '';
             if (existing.instruments && existing.instruments.length > 0) {
                 existing.instruments.forEach(inst => createInstrumentRow(inst));
             }
+
+            renderInspectionPoints(existing.inspections || {});
 
             certFileInput.value = ''; // Limpiar input file
             certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
@@ -420,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const brand = brandInput.value;
             const model = modelInput.value;
             const instruments = getInstrumentsData();
+            const inspections = getInspectionsData();
             let certificate = certFileInput.files[0] || null;
 
             if (!newDate) {
@@ -448,12 +567,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         location: location,
                         brand: brand,
                         model: model,
-                        instruments: instruments
+                        instruments: instruments,
+                        inspections: inspections
                     });
                 }
 
-                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments);
-                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments };
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections);
+                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections };
                 updateInstrumentsBank();
 
                 editModal.classList.add('hidden');
@@ -471,13 +591,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const arrayBuffer = await originalBlob.arrayBuffer();
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
-            const worksheet = workbook.worksheets[0]; // Primera hoja
+            const worksheet = workbook.worksheets[0];
 
             if (!worksheet) {
                 throw new Error('No se encontró la primera hoja en el certificado.');
             }
 
-            // Helper para encontrar keys dinámicamente
             const getVal = (row, words) => {
                 if (!row) return '';
                 const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
@@ -485,55 +604,126 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const eq = data.equipment || {};
+            const eqName = (getVal(eq, ['equipo', 'nombre']) || '').toUpperCase();
 
-            // Mapeo según plantilla 2025 (Preservando estilos de celda)
-            const updates = {
-                'A5': `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
-                'D5': `Modelo: ${data.model || ''}`,
-                'A7': `N° serie: ${selectedSerieForEdit}`,
-                'D7': `Marca: ${data.brand || ''}`,
-                'H5': String(data.building || ''),
-                'H6': String(data.sector || ''),
-                'H7': String(data.location || ''),
-                'H8': formatDate(data.date),
-                'H9': data.ordenM,
-                'H10': data.technician
+            // Configuración de Mapeos Dinámicos
+            const CONFIG_TEMPLATES = {
+                'ELECTROCARDIOGRAFO': {
+                    cells: {
+                        'brand': 'D7',
+                        'model': 'D5',
+                        'serie': 'A7',
+                        'equipment': 'A5',
+                        'building': 'H5',
+                        'sector': 'H6',
+                        'location': 'H7',
+                        'date': 'H8',
+                        'ordenM': 'H9',
+                        'technician': 'H10'
+                    },
+                    instrumentsStartRow: 12,
+                    instrumentsMaxRows: 4
+                },
+                'DEFAULT': {
+                    cells: {
+                        'brand': 'D7',
+                        'model': 'D5',
+                        'serie': 'A7',
+                        'equipment': 'A5',
+                        'building': 'H5',
+                        'sector': 'H6',
+                        'location': 'H7',
+                        'date': 'H8',
+                        'ordenM': 'H9',
+                        'technician': 'H10'
+                    },
+                    instrumentsStartRow: 12,
+                    instrumentsMaxRows: 5
+                }
             };
 
-            // Inyectar instrumentos (Inicia en fila 12)
+            // Detectar plantilla
+            const type = Object.keys(CONFIG_TEMPLATES).find(key => eqName.includes(key)) || 'DEFAULT';
+            const config = CONFIG_TEMPLATES[type];
+            const c = config.cells;
+
+            console.log(`Aplicando plantilla tipo: ${type}`);
+
+            // 1. Actualizar Datos del Equipo y Generales
+            const updates = {
+                [c.equipment]: `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
+                [c.model]: `Modelo: ${data.model || ''}`,
+                [c.serie]: `N° serie: ${selectedSerieForEdit}`,
+                [c.brand]: `Marca: ${data.brand || ''}`,
+                [c.building]: String(data.building || ''),
+                [c.sector]: String(data.sector || ''),
+                [c.location]: String(data.location || ''),
+                [c.date]: formatDate(data.date),
+                [c.ordenM]: String(data.ordenM || ''),
+                [c.technician]: String(data.technician || '')
+            };
+
+            for (const [cellPos, value] of Object.entries(updates)) {
+                if (!cellPos) continue;
+                const cell = worksheet.getCell(cellPos);
+                const currentStyle = cell.style;
+                cell.value = value;
+                cell.style = currentStyle;
+            }
+
+            // 2. Inyectar instrumentos
             if (data.instruments && data.instruments.length > 0) {
                 data.instruments.forEach((inst, index) => {
-                    const row = 12 + index;
-                    // Limitar a 4 instrumentos para no pisar lo de abajo
-                    if (row < 17) {
-                        const cellA = worksheet.getCell(`A${row}`);
-                        const cellB = worksheet.getCell(`B${row}`);
-                        const cellC = worksheet.getCell(`C${row}`);
-                        const cellD = worksheet.getCell(`D${row}`);
-                        const cellE = worksheet.getCell(`E${row}`);
-
-                        cellA.value = inst.name || '';
-                        cellB.value = inst.brand || '';
-                        cellC.value = inst.model || '';
-                        cellD.value = inst.serie || '';
-                        cellE.value = inst.date || '';
+                    const row = config.instrumentsStartRow + index;
+                    if (index < config.instrumentsMaxRows) {
+                        worksheet.getCell(`A${row}`).value = inst.name || '';
+                        worksheet.getCell(`B${row}`).value = inst.brand || '';
+                        worksheet.getCell(`C${row}`).value = inst.model || '';
+                        worksheet.getCell(`D${row}`).value = inst.serie || '';
+                        worksheet.getCell(`E${row}`).value = inst.date || '';
                     }
                 });
             }
 
-            for (const [cellPos, value] of Object.entries(updates)) {
-                const cell = worksheet.getCell(cellPos);
-                // Intentamos preservar el estilo original de la celda antes de cambiar el valor
-                const currentStyle = cell.style;
-                cell.value = value;
-                cell.style = currentStyle;
+            // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO)
+            if (type === 'ELECTROCARDIOGRAFO' && data.inspections) {
+                const schemaMapping = {
+                    "8.1 Test Cualitativo": { startRow: 16 },
+                    "8.2 Test de Aceptación": { startRow: 36 },
+                    "8.3 Test Cuantitativo": { startRow: 41 },
+                    "8.4 Mantenimiento Preventivo": { startRow: 46 }
+                };
+
+                Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
+                    const configInsp = schemaMapping[title];
+                    if (!configInsp) return;
+
+                    points.forEach((point, index) => {
+                        const rowIdx = configInsp.startRow + index;
+                        const result = data.inspections[point];
+
+                        const cellPaso = worksheet.getCell(`I${rowIdx}`);
+                        const cellFallo = worksheet.getCell(`J${rowIdx}`);
+
+                        cellPaso.value = '';
+                        cellFallo.value = '';
+
+                        if (result === 'si') {
+                            cellPaso.value = 'si';
+                        } else if (result === 'no') {
+                            cellFallo.value = 'X';
+                        } else if (result === 'na') {
+                            cellPaso.value = 'N/A';
+                        }
+                    });
+                });
             }
 
             const buffer = await workbook.xlsx.writeBuffer();
             return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         } catch (err) {
             console.error('Error en updateExcelCertificate:', err);
-            throw err; // Propagar al llamador para mostrar el alert
+            throw err;
         }
     }
 
@@ -545,6 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === UTILIDADES ===
     function formatDate(dateStr) {
+        if (!dateStr) return '';
         const d = new Date(dateStr + 'T00:00:00');
         return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
