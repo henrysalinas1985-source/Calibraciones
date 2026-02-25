@@ -662,12 +662,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            // Detectar plantilla
-            const type = Object.keys(CONFIG_TEMPLATES).find(key => eqName.includes(key)) || 'DEFAULT';
+            // Detectar plantilla con normalización
+            const normalize = (text) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            const normalizedEqName = normalize(eqName);
+
+            const type = Object.keys(CONFIG_TEMPLATES).find(key => normalizedEqName.includes(normalize(key))) || 'DEFAULT';
             const config = CONFIG_TEMPLATES[type];
             const c = config.cells;
 
-            console.log(`Aplicando plantilla tipo: ${type}`);
+            console.log(`Aplicando plantilla tipo: ${type} (Original: ${eqName})`);
 
             // 1. Actualizar Datos del Equipo y Generales
             const updates = {
@@ -705,8 +708,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 3. Inyectar Puntos de Inspección (Sólo para ELECTROCARDIOGRAFO)
-            if (type === 'ELECTROCARDIOGRAFO' && data.inspections) {
+            // 3. Inyectar Puntos de Inspección (Habilitado para todos si hay datos, o específico por tipo)
+            if (data.inspections) {
                 const schemaMapping = {
                     "8.1 Test Cualitativo": { startRow: 16, step: 1 },
                     "8.2 Test de Aceptación": { startRow: 36, step: 1 },
@@ -724,16 +727,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         const result = data.inspections[point];
 
                         const cellI = worksheet.getCell(`I${rowIdx}`);
+                        const cellJ = worksheet.getCell(`J${rowIdx}`);
+
+                        // Limpiar antes de inyectar para evitar duplicados visuales en la plantilla
+                        cellI.value = null;
+                        cellJ.value = null;
 
                         if (title.includes("9.1")) {
                             cellI.value = result;
                         } else {
-                            const cellJ = worksheet.getCell(`J${rowIdx}`);
-                            cellI.value = '';
-                            cellJ.value = '';
-
                             if (result === 'si') {
-                                cellI.value = 'si';
+                                cellI.value = 'X';
                             } else if (result === 'no') {
                                 cellJ.value = 'X';
                             } else if (result === 'na') {
