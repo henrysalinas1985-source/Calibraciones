@@ -636,6 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const arrayBuffer = await originalBlob.arrayBuffer();
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
+            console.log("Definitive Mapping Version: 2026-02-27T14:40");
             let worksheet = workbook.getWorksheet('Certificado') || workbook.worksheets[0];
 
             if (!worksheet) {
@@ -745,12 +746,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 Object.entries(schemaMapping).forEach(([title, configInsp]) => {
-                    const points = INSPECTION_SCHEMA[title];
+                    // Normalización de búsqueda de categoría
+                    const actualTitle = Object.keys(INSPECTION_SCHEMA).find(k =>
+                        k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+                        title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                    );
+                    const points = INSPECTION_SCHEMA[actualTitle || title];
                     if (!points) return;
 
                     points.forEach((point, index) => {
                         const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
-                        const result = data.inspections[point];
+
+                        // Normalización de búsqueda del resultado para el punto exacto
+                        const resultKey = Object.keys(data.inspections).find(k => k.trim() === point.trim());
+                        const result = data.inspections[resultKey || point];
 
                         const cellH = worksheet.getCell(`H${rowIdx}`);
                         const cellI = worksheet.getCell(`I${rowIdx}`);
@@ -761,10 +770,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const styleI = cellI.style;
                         const styleJ = cellJ.style;
 
-                        // Limpiar antes de escribir
-                        cellH.value = null;
-                        cellI.value = null;
-                        cellJ.value = null;
+                        // Limpiar antes de escribir con string vacío para asegurar cambio
+                        cellH.value = "";
+                        cellI.value = "";
+                        cellJ.value = "";
 
                         if (title.includes("9.1")) {
                             // Para mediciones, escribir en Column I como se vio en el XML
