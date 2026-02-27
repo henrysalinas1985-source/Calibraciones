@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             "Limpieza Exterior", "Lubricacion", "Reemplazar filtros y Baterias", "Test de Seguridad Electrica"
         ],
         "9.1 Medición de Frecuencia": [
-            "30 PPM", "60 PPM", "100 PPM", "120 PPM", "150 PPM", "180 PPM", "240 PPM"
+            "30", "40", "60", "80", "90", "100", "120", "140", "160", "180", "200", "220", "240"
         ]
     };
 
@@ -737,11 +737,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 3. Inyectar Puntos de Inspección (Secciones 8.1 - 9.1)
             if (data.inspections) {
                 const schemaMapping = {
-                    "8.1 Test Cualitativo": { startRow: 17, step: 1 },
-                    "8.2 Test de Aceptación": { startRow: 37, step: 1 },
-                    "8.3 Test Cuantitativo": { startRow: 42, step: 1 },
-                    "8.4 Mantenimiento Preventivo": { startRow: 47, step: 1 },
-                    "9.1 Medición de Frecuencia": { startRow: 59, step: 2 } // Valores en 59, 61, 63...
+                    "8.1 Test Cualitativo": { startRow: 25, step: 1 },
+                    "8.2 Test de Aceptación": { startRow: 45, step: 1 },
+                    "8.3 Test Cuantitativo": { startRow: 50, step: 1 },
+                    "8.4 Mantenimiento Preventivo": { startRow: 55, step: 1 },
+                    "9.1 Medición de Frecuencia": { startRow: 61, step: 2 } // Valores en 61, 63, 65...
                 };
 
                 Object.entries(schemaMapping).forEach(([title, configInsp]) => {
