@@ -741,7 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     "8.2 Test de Aceptación": { startRow: 37, step: 1 },
                     "8.3 Test Cuantitativo": { startRow: 42, step: 1 },
                     "8.4 Mantenimiento Preventivo": { startRow: 47, step: 1 },
-                    "9.1 Medición de Frecuencia": { startRow: 57, step: 3 } // Fila 57 es el primer "Valor medido"
+                    "9.1 Medición de Frecuencia": { startRow: 59, step: 2 } // Valores en 59, 61, 63...
                 };
 
                 Object.entries(schemaMapping).forEach(([title, configInsp]) => {
@@ -752,33 +752,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
                         const result = data.inspections[point];
 
+                        const cellH = worksheet.getCell(`H${rowIdx}`);
                         const cellI = worksheet.getCell(`I${rowIdx}`);
                         const cellJ = worksheet.getCell(`J${rowIdx}`);
 
                         // Preservar estilos
+                        const styleH = cellH.style;
                         const styleI = cellI.style;
                         const styleJ = cellJ.style;
 
                         // Limpiar antes de escribir
+                        cellH.value = null;
                         cellI.value = null;
                         cellJ.value = null;
 
                         if (title.includes("9.1")) {
+                            // Para mediciones, escribir en Column I como se vio en el XML
                             if (result !== undefined && result !== '' && result !== 'na') {
                                 cellI.value = result;
                             }
                         } else {
                             if (result === 'si') {
-                                cellI.value = 'X';
+                                // Siguiendo la instrucción del Excel: P (Pasó)
+                                cellH.value = 'P';
                             } else if (result === 'no') {
-                                cellJ.value = 'X';
+                                // Siguiendo la instrucción del Excel: F (Falló)
+                                cellH.value = 'F';
                             } else if (result === 'na') {
-                                cellI.value = 'N/A';
+                                // Para N/A, usar la columna N/A con una X
+                                cellI.value = 'X';
                             }
                         }
 
+                        cellH.style = styleH;
                         cellI.style = styleI;
-                        cellJ.style = styleJ;
                     });
                 });
             }
