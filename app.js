@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
         "8.4 Mantenimiento Preventivo": [
             "Limpieza Exterior", "Lubricacion", "Reemplazar filtros y Baterias", "Test de Seguridad Electrica"
         ],
-        "9.1 Mediciones en frecuencia": [
-            "30", "40", "60", "80", "90", "100", "120", "140", "160", "180", "200", "220", "240"
+        "9.1 Medición de Frecuencia": [
+            "30 PPM", "60 PPM", "100 PPM", "120 PPM", "150 PPM", "180 PPM", "240 PPM"
         ]
     };
 
@@ -545,6 +545,29 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        document.getElementById('resetCalibBtn').addEventListener('click', async () => {
+            if (!selectedSerieForEdit) return;
+            if (!confirm(`¿Estás seguro de que deseas resetear los datos de calibración del equipo ${selectedSerieForEdit}?`)) return;
+
+            try {
+                const tx = db.transaction('calibrations', 'readwrite');
+                const store = tx.objectStore('calibrations');
+                await new Promise((resolve, reject) => {
+                    const req = store.delete(selectedSerieForEdit);
+                    req.onsuccess = resolve;
+                    req.onerror = () => reject(req.error);
+                });
+
+                delete calibrationDates[selectedSerieForEdit];
+                updateInstrumentsBank();
+                editModal.classList.add('hidden');
+                renderTable();
+            } catch (err) {
+                console.error('Error al resetear:', err);
+                alert('No se pudo resetear: ' + err.message);
+            }
+        });
+
         document.getElementById('closeModalBtn').addEventListener('click', () => {
             editModal.classList.add('hidden');
         });
@@ -613,10 +636,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const arrayBuffer = await originalBlob.arrayBuffer();
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
-            const worksheet = workbook.worksheets[0];
+            let worksheet = workbook.getWorksheet('Certificado') || workbook.worksheets[0];
 
             if (!worksheet) {
-                throw new Error('No se encontró la primera hoja en el certificado.');
+                throw new Error('No se encontró la hoja de certificado.');
             }
 
             const getVal = (row, words) => {
@@ -711,53 +734,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 3. Inyectar Puntos de Inspección (Habilitado para todos si hay datos)
+            // 3. Inyectar Puntos de Inspección (Secciones 8.1 - 9.1)
             if (data.inspections) {
-                console.log("Iniciando inyección de inspecciones en Excel...");
                 const schemaMapping = {
-                    "8.1 Test Cualitativo": { startRow: 16, step: 1 },
-                    "8.2 Test de Aceptación": { startRow: 36, step: 1 },
-                    "8.3 Test Cuantitativo": { startRow: 41, step: 1 },
-                    "8.4 Mantenimiento Preventivo": { startRow: 46, step: 1 },
-                    "9.1 Mediciones en frecuencia": { startRow: 54, step: 3 } // Fila 54 es el primer valor, salto de 3 (Etiqueta, "Valor medido", Valor)
+                    "8.1 Test Cualitativo": { startRow: 17, step: 1 },
+                    "8.2 Test de Aceptación": { startRow: 37, step: 1 },
+                    "8.3 Test Cuantitativo": { startRow: 42, step: 1 },
+                    "8.4 Mantenimiento Preventivo": { startRow: 47, step: 1 },
+                    "9.1 Medición de Frecuencia": { startRow: 57, step: 3 } // Fila 57 es el primer "Valor medido"
                 };
 
-                Object.entries(INSPECTION_SCHEMA).forEach(([title, points]) => {
-                    const configInsp = schemaMapping[title];
-                    if (!configInsp) return;
+                Object.entries(schemaMapping).forEach(([title, configInsp]) => {
+                    const points = INSPECTION_SCHEMA[title];
+                    if (!points) return;
 
                     points.forEach((point, index) => {
                         const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
-                        let result = data.inspections[point];
-
-                        // Normalizar resultado
-                        if (result === undefined || result === null) result = 'na';
+                        const result = data.inspections[point];
 
                         const cellI = worksheet.getCell(`I${rowIdx}`);
                         const cellJ = worksheet.getCell(`J${rowIdx}`);
 
-                        // Limpiar celdas antes de escribir
+                        // Preservar estilos
+                        const styleI = cellI.style;
+                        const styleJ = cellJ.style;
+
+                        // Limpiar antes de escribir
                         cellI.value = null;
                         cellJ.value = null;
 
                         if (title.includes("9.1")) {
-                            // Para mediciones, escribir el valor directamente (o NA)
-                            cellI.value = (result === 'na' || result === '') ? 'N/A' : result;
-                            console.log(`Excel Insp (9.1): I${rowIdx} = ${cellI.value}`);
+                            if (result !== undefined && result !== '' && result !== 'na') {
+                                cellI.value = result;
+                            }
                         } else {
-                            const val = String(result).toLowerCase().trim();
-                            if (val === 'si' || val === 'sí') {
+                            if (result === 'si') {
                                 cellI.value = 'X';
-                            } else if (val === 'no') {
+                            } else if (result === 'no') {
                                 cellJ.value = 'X';
-                            } else if (val === 'na') {
+                            } else if (result === 'na') {
                                 cellI.value = 'N/A';
                             }
-                            console.log(`Excel Insp (${title}): I${rowIdx}=${cellI.value}, J${rowIdx}=${cellJ.value} (Original: ${result})`);
                         }
+
+                        cellI.style = styleI;
+                        cellJ.style = styleJ;
                     });
                 });
-                console.log("Inyección de inspecciones finalizada.");
             }
 
             const buffer = await workbook.xlsx.writeBuffer();
