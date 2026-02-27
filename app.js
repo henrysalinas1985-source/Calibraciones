@@ -776,19 +776,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         cellJ.value = "";
 
                         if (title.includes("9.1")) {
-                            // En 9.1, el resultado va en Columna H y afecta dos filas (Gris y Blanca)
+                            // En 9.1: Fila sombreada (H + rowIdx) = Referencia (nominal)
+                            // Fila NO sombreada (H + rowIdx + 1) = Valor medido
+
+                            // 1. Escribir Referencia Nominal en fila sombreada
+                            const nominal = isNaN(point) ? point : Number(point);
+                            cellH.value = nominal;
+
+                            // 2. Escribir Valor Medido en fila blanca (si existe)
                             if (result !== undefined && result !== '' && result !== 'na') {
                                 const valNum = isNaN(result) ? result : Number(result);
-                                cellH.value = valNum; // Fila Gris (Label/Reference)
-
                                 const cellHBelow = worksheet.getCell(`H${rowIdx + 1}`);
                                 const styleBelow = cellHBelow.style;
-                                cellHBelow.value = valNum; // Fila Blanca (Measured)
+                                cellHBelow.value = valNum;
                                 cellHBelow.style = styleBelow;
 
-                                // Asegurar limpieza de I y J en ambas filas para esta sección
-                                cellI.value = "";
-                                cellJ.value = "";
+                                // Limpieza de columnas adyacentes
                                 worksheet.getCell(`I${rowIdx + 1}`).value = "";
                                 worksheet.getCell(`J${rowIdx + 1}`).value = "";
                             }
