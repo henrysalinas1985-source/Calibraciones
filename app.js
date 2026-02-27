@@ -30,6 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     };
 
+    const EVALUATION_SCHEMA = [
+        "Inspección superada, el equipo es apto para el uso",
+        "El equipo ha necesitado reparación",
+        "El equipo no está reparado. No se puede usar",
+        "El equipo se de DE BAJA"
+    ];
+
     const DB_NAME = 'CalibracionesDB';
     const DB_VERSION = 1;
 
@@ -49,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const buildingInput = document.getElementById('buildingInput');
     const sectorInput = document.getElementById('sectorInput');
     const locationInput = document.getElementById('locationInput');
+    const commentsInput = document.getElementById('commentsInput');
     const addInstrumentBtn = document.getElementById('addInstrumentBtn');
     const instrumentsContainer = document.getElementById('instrumentsContainer');
     const certFileInput = document.getElementById('certFileInput');
@@ -94,10 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections };
+        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections, evaluations, comments };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -528,6 +536,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 existing.instruments.forEach(inst => createInstrumentRow(inst));
             }
 
+            const evaluations = existing.evaluations || {};
+            const evalContainer = document.getElementById('evaluationStatusContainer');
+            evalContainer.innerHTML = '';
+            EVALUATION_SCHEMA.forEach(point => {
+                const currentVal = evaluations[point] || '';
+                const row = document.createElement('div');
+                row.className = 'inspection-row';
+                row.innerHTML = `
+                    <div class="inspection-label">${point}</div>
+                    <div class="inspection-options" data-label="${point}" data-type="evaluation">
+                        <div class="inspection-opt ${currentVal === 'si' ? 'selected' : ''}" data-val="si">SÍ</div>
+                        <div class="inspection-opt ${currentVal === 'no' ? 'selected' : ''}" data-val="no">NO</div>
+                    </div>
+                `;
+                row.querySelectorAll('.inspection-opt').forEach(opt => {
+                    opt.onclick = () => {
+                        row.querySelectorAll('.inspection-opt').forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                    };
+                });
+                evalContainer.appendChild(row);
+            });
+
+            commentsInput.value = existing.comments || '';
+
             renderInspectionPoints(existing.inspections || {});
 
             certFileInput.value = ''; // Limpiar input file
@@ -601,6 +634,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 let certToUpdate = certificate || existingData.certificate;
                 let certName = certificate ? certificate.name : existingData.certName;
 
+                const evaluations = {};
+                document.querySelectorAll('#evaluationStatusContainer .inspection-options').forEach(group => {
+                    const label = group.dataset.label;
+                    const selected = group.querySelector('.inspection-opt.selected');
+                    evaluations[label] = selected ? selected.dataset.val : '';
+                });
+
+                const comments = commentsInput.value;
+
                 if (certToUpdate && (certName.toLowerCase().endsWith('.xlsx') || certName.toLowerCase().endsWith('.xls'))) {
                     certificate = await updateExcelCertificate(certToUpdate, {
                         date: newDate,
@@ -613,12 +655,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         brand: brand,
                         model: model,
                         instruments: instruments,
-                        inspections: inspections
+                        inspections: inspections,
+                        evaluations: evaluations,
+                        comments: comments
                     });
                 }
 
-                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections);
-                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections };
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments);
+                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments };
                 updateInstrumentsBank();
 
                 editModal.classList.add('hidden');
@@ -719,6 +763,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 cell.value = value;
                 cell.style = currentStyle;
                 console.log(`Excel Update: ${cellPos} = ${value}`);
+            }
+
+            // 1.1 Inyectar Estado de Valoración (Filas 17-20)
+            if (data.evaluations) {
+                const evalMapping = {
+                    "Inspección superada, el equipo es apto para el uso": 17,
+                    "El equipo ha necesitado reparación": 18,
+                    "El equipo no está reparado. No se puede usar": 19,
+                    "El equipo se de DE BAJA": 20
+                };
+
+                Object.entries(evalMapping).forEach(([point, row]) => {
+                    const result = data.evaluations[point];
+                    const cellH = worksheet.getCell(`H${row}`);
+                    const cellI = worksheet.getCell(`I${row}`);
+
+                    // Limpiar
+                    cellH.value = "";
+                    cellI.value = "";
+
+                    if (result === 'si') {
+                        cellH.value = 'x';
+                    } else if (result === 'no') {
+                        cellI.value = 'x';
+                    }
+                });
+            }
+
+            // 1.2 Inyectar Comentarios (Fila 21)
+            if (data.comments !== undefined) {
+                const cellComment = worksheet.getCell('A21');
+                const styleComment = cellComment.style;
+                cellComment.value = `Comentarios: ${data.comments || ''}`;
+                cellComment.style = styleComment;
             }
 
             // 2. Inyectar instrumentos
