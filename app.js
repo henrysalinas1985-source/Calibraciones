@@ -802,18 +802,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             } else if (result === 'no') {
                                 cellH.value = 'No se cambió';
                             } else if (result === 'na') {
-                                cellI.value = 'X';
+                                // N/A va en la columna de Pasó (H)
+                                cellH.value = 'N/A';
                             }
                         } else {
                             if (result === 'si') {
-                                // Siguiendo la instrucción del Excel: P (Pasó)
+                                // P: PASO en Columna H
                                 cellH.value = 'P';
                             } else if (result === 'no') {
-                                // Siguiendo la instrucción del Excel: F (Falló)
-                                cellH.value = 'F';
+                                // F: FALLO en Columna I
+                                cellI.value = 'F';
                             } else if (result === 'na') {
-                                // Para N/A, usar la columna N/A con una X
-                                cellI.value = 'X';
+                                // N/A en Columna H
+                                cellH.value = 'N/A';
                             }
                         }
 
