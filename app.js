@@ -776,9 +776,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         cellJ.value = "";
 
                         if (title.includes("9.1")) {
-                            // Para mediciones, escribir en Column I como se vio en el XML
+                            // En 9.1, el resultado va en Columna H y afecta dos filas (Gris y Blanca)
                             if (result !== undefined && result !== '' && result !== 'na') {
-                                cellI.value = result;
+                                const valNum = isNaN(result) ? result : Number(result);
+                                cellH.value = valNum; // Fila Gris (Label/Reference)
+
+                                const cellHBelow = worksheet.getCell(`H${rowIdx + 1}`);
+                                const styleBelow = cellHBelow.style;
+                                cellHBelow.value = valNum; // Fila Blanca (Measured)
+                                cellHBelow.style = styleBelow;
+
+                                // Asegurar limpieza de I y J en ambas filas para esta sección
+                                cellI.value = "";
+                                cellJ.value = "";
+                                worksheet.getCell(`I${rowIdx + 1}`).value = "";
+                                worksheet.getCell(`J${rowIdx + 1}`).value = "";
                             }
                         } else if (point === "Baterias y su cargador") {
                             // Caso especial 8.1.12: Se cambió / No se cambió
