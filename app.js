@@ -771,6 +771,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (result !== undefined && result !== '' && result !== 'na') {
                                 cellI.value = result;
                             }
+                        } else if (point === "Baterias y su cargador") {
+                            // Caso especial 8.1.12: Se cambió / No se cambió
+                            if (result === 'si') {
+                                cellH.value = 'Se cambió';
+                            } else if (result === 'no') {
+                                cellH.value = 'No se cambió';
+                            } else if (result === 'na') {
+                                cellI.value = 'X';
+                            }
                         } else {
                             if (result === 'si') {
                                 // Siguiendo la instrucción del Excel: P (Pasó)
