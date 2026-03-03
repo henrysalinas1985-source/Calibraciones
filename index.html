@@ -78,8 +78,14 @@
         <!-- Modal Editar Calibración -->
         <div id="editModal" class="modal-overlay hidden">
             <div class="modal">
-                <h3 id="modalTitle">Actualizar Calibración</h3>
-                <p id="modalSerie"></p>
+                <div class="input-group">
+                    <label>Nombre del Equipo</label>
+                    <input type="text" id="equipmentNameInput" placeholder="Nombre del equipo">
+                </div>
+                <div class="input-group">
+                    <label>N° de Serie</label>
+                    <input type="text" id="modalSerieInput" placeholder="Número de serie" style="text-transform: uppercase;">
+                </div>
                 <div class="input-group">
                     <label>Fecha de Calibración</label>
                     <input type="date" id="calibDateInput">

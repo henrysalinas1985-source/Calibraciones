@@ -57,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sectorInput = document.getElementById('sectorInput');
     const locationInput = document.getElementById('locationInput');
     const commentsInput = document.getElementById('commentsInput');
+    const equipmentNameInput = document.getElementById('equipmentNameInput');
+    const modalSerieInput = document.getElementById('modalSerieInput');
     const addInstrumentBtn = document.getElementById('addInstrumentBtn');
     const instrumentsContainer = document.getElementById('instrumentsContainer');
     const certFileInput = document.getElementById('certFileInput');
@@ -102,10 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments) {
+    async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie) {
         const tx = db.transaction('calibrations', 'readwrite');
         const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections, evaluations, comments };
+        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie };
         if (certificate) {
             data.certificate = certificate; // Blob
             data.certName = certificate.name;
@@ -526,7 +528,10 @@ document.addEventListener('DOMContentLoaded', () => {
             sectorInput.value = existing.sector || getVal(equipmentData, ['sector']);
             locationInput.value = existing.location || getVal(equipmentData, ['ubicación', 'ubicacion']);
 
-            // Marca y Modelo
+            // Nombre del Equipo y Serie
+            equipmentNameInput.value = existing.editedName || getVal(equipmentData, ['equipo', 'nombre']);
+            modalSerieInput.value = existing.editedSerie || serie;
+
             brandInput.value = existing.brand || getVal(equipmentData, ['marca']);
             modelInput.value = existing.model || getVal(equipmentData, ['modelo']);
 
@@ -565,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             certFileInput.value = ''; // Limpiar input file
             certStatus.textContent = existing.certName ? `Certificado actual: ${existing.certName}` : 'Sin certificado adjunto';
-            document.getElementById('modalSerie').textContent = `Serie: ${serie}`;
             editModal.classList.remove('hidden');
         };
 
@@ -615,6 +619,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const location = locationInput.value;
             const brand = brandInput.value;
             const model = modelInput.value;
+            const editedName = equipmentNameInput.value;
+            const editedSerie = modalSerieInput.value;
             const instruments = getInstrumentsData();
             const inspections = getInspectionsData();
             let certificate = certFileInput.files[0] || null;
@@ -654,6 +660,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         location: location,
                         brand: brand,
                         model: model,
+                        editedName: editedName,
+                        editedSerie: editedSerie,
                         instruments: instruments,
                         inspections: inspections,
                         evaluations: evaluations,
@@ -661,8 +669,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments);
-                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments };
+                await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie);
+                calibrationDates[selectedSerieForEdit] = { date: newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie };
                 updateInstrumentsBank();
 
                 editModal.classList.add('hidden');
@@ -744,9 +752,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 1. Actualizar Datos del Equipo y Generales
             const updates = {
-                [c.equipment]: `Equipo: ${getVal(eq, ['equipo', 'nombre'])}`,
+                [c.equipment]: `Equipo: ${data.editedName || getVal(eq, ['equipo', 'nombre'])}`,
                 [c.model]: `Modelo: ${data.model || ''}`,
-                [c.serie]: `N° serie: ${selectedSerieForEdit}`,
+                [c.serie]: `N° serie: ${data.editedSerie || selectedSerieForEdit}`,
                 [c.brand]: `Marca: ${data.brand || ''}`,
                 [c.building]: String(data.building || ''),
                 [c.sector]: String(data.sector || ''),
