@@ -560,9 +560,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Limpiar y cargar instrumentos e inspecciones
             instrumentsContainer.innerHTML = '';
-            if (existing.instruments && existing.instruments.length > 0) {
-                existing.instruments.forEach(inst => createInstrumentRow(inst));
+
+            async function populateInstruments() {
+                if (existing.instruments && existing.instruments.length > 0) {
+                    existing.instruments.forEach(inst => createInstrumentRow(inst));
+                } else {
+                    // Si no hay guardados, intentar extraer de la plantilla seleccionada o del certificado previo
+                    const selectedTemplateId = templateSelector.value;
+                    const template = savedTemplates.find(t => String(t.id) === String(selectedTemplateId));
+                    const certBlob = existing.certificate || (template ? template.blob : null);
+
+                    if (certBlob) {
+                        try {
+                            const extracted = await extractInstrumentsFromExcel(certBlob);
+                            if (extracted.length > 0) {
+                                extracted.forEach(inst => createInstrumentRow(inst));
+                            }
+                        } catch (err) {
+                            console.error("Error al extraer instrumentos:", err);
+                        }
+                    }
+                }
             }
+            populateInstruments();
 
             const evaluations = existing.evaluations || {};
             const evalContainer = document.getElementById('evaluationStatusContainer');
@@ -1005,6 +1025,38 @@ function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+async function extractInstrumentsFromExcel(blob) {
+    try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+        const worksheet = workbook.getWorksheet('Certificado') || workbook.worksheets[0];
+        if (!worksheet) return [];
+
+        const instruments = [];
+        const startRow = 12; // Según mapeo actual
+        const maxRows = 5;
+
+        for (let i = 0; i < maxRows; i++) {
+            const row = startRow + i;
+            const name = worksheet.getCell(`A${row}`).value;
+            if (name && String(name).trim()) {
+                instruments.push({
+                    name: String(name).trim(),
+                    brand: String(worksheet.getCell(`B${row}`).value || '').trim(),
+                    model: String(worksheet.getCell(`C${row}`).value || '').trim(),
+                    serie: String(worksheet.getCell(`D${row}`).value || '').trim(),
+                    date: String(worksheet.getCell(`E${row}`).value || '').trim()
+                });
+            }
+        }
+        return instruments;
+    } catch (err) {
+        console.error("Error en extractInstrumentsFromExcel:", err);
+        return [];
+    }
 }
 
 async function checkExpirations() {
