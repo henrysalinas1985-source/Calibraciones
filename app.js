@@ -305,8 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = allSheetsData[currentClinic];
         const searchTerm = serieFilter.value.trim().toUpperCase();
 
-        equiposTableBody.innerHTML = '';
         let stats = { total: 0, warning: 0, danger: 0 };
+        let tableHtml = '';
+        const renderedSeries = new Set(); // Para evitar duplicados en la visualización
 
         console.log("Filas a procesar:", data.length);
 
@@ -316,7 +317,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const serieKey = keys.find(k => k.toLowerCase().includes('serie'));
                 const nombreKey = keys.find(k => k.toLowerCase().includes('equipo') || k.toLowerCase().includes('nombre'));
 
-                const serie = serieKey ? String(row[serieKey] || '').toUpperCase() : 'N/A';
+                let serie = serieKey ? String(row[serieKey] || '').trim().toUpperCase() : 'N/A';
+
+                // Evitar duplicados si la misma serie aparece varias veces en el Excel (o por espacios extras)
+                if (serie !== 'N/A') {
+                    if (renderedSeries.has(serie)) return;
+                    renderedSeries.add(serie);
+                }
+
                 if (searchTerm && !serie.includes(searchTerm)) return;
 
                 stats.total++;
@@ -331,30 +339,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const displayName = (calibObj && calibObj.editedName) ? calibObj.editedName : (nombreKey ? (row[nombreKey] || 'N/A') : 'N/A');
                 const displaySerie = (calibObj && calibObj.editedSerie) ? calibObj.editedSerie : serie;
 
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${displayName}</td>
-                    <td>${displaySerie}</td>
-                    <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
-                    <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
-                    <td>
-                        ${calibObj && calibObj.certificate ?
+                tableHtml += `
+                    <tr>
+                        <td>${displayName}</td>
+                        <td>${displaySerie}</td>
+                        <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
+                        <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
+                        <td>
+                            ${calibObj && calibObj.certificate ?
                         `<button class="btn btn-small" title="Ver Certificado" onclick="window.viewCert('${serie}')">📄</button>` :
                         '-'}
-                    </td>
-                    <td><span class="status-badge ${status.class}">${status.text}</span></td>
-                    <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
+                        </td>
+                        <td><span class="status-badge ${status.class}">${status.text}</span></td>
+                        <td><button class="btn btn-secondary btn-small" onclick="window.openEdit('${serie}')">📅</button></td>
+                    </tr>
                 `;
-                equiposTableBody.appendChild(tr);
             } catch (err) {
                 console.error("Error procesando fila:", err, row);
             }
         });
 
+        equiposTableBody.innerHTML = tableHtml;
         totalEquiposEl.textContent = stats.total;
         cercaVencerEl.textContent = stats.warning;
         vencidosEl.textContent = stats.danger;
-        console.log("Render completo. Total:", stats.total);
+        console.log("Render completo. Total único:", stats.total);
     }
 
     function getStatus(dateStr) {
@@ -747,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateInstrumentsBank();
 
             editModal.classList.add('hidden');
-            renderTable();
+            await renderTable();
             alert('Calibración guardada exitosamente.');
         } catch (err) {
             console.error('Error al guardar calibración:', err);
