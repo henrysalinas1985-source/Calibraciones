@@ -793,7 +793,7 @@ async function updateExcelCertificate(originalBlob, data) {
         const arrayBuffer = await originalBlob.arrayBuffer();
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(arrayBuffer);
-        console.log("Definitive Mapping Version: 2026-03-03T11:00");
+        console.log("Definitive Mapping Version: 2026-03-03T11:40");
         let worksheet = workbook.getWorksheet('Certificado') || workbook.worksheets[0];
 
         if (!worksheet) {
@@ -913,6 +913,16 @@ async function updateExcelCertificate(originalBlob, data) {
         }
 
         // 2. Inyectar instrumentos
+        // Primero limpiar el rango posible de instrumentos para evitar residuos de la plantilla
+        for (let i = 0; i < config.instrumentsMaxRows; i++) {
+            const r = config.instrumentsStartRow + i;
+            worksheet.getCell(`A${r}`).value = null;
+            worksheet.getCell(`B${r}`).value = null;
+            worksheet.getCell(`C${r}`).value = null;
+            worksheet.getCell(`D${r}`).value = null;
+            worksheet.getCell(`E${r}`).value = null;
+        }
+
         if (data.instruments && data.instruments.length > 0) {
             data.instruments.forEach((inst, index) => {
                 const row = config.instrumentsStartRow + index;
@@ -1041,15 +1051,21 @@ async function extractInstrumentsFromExcel(blob) {
 
         for (let i = 0; i < maxRows; i++) {
             const row = startRow + i;
-            const name = worksheet.getCell(`A${row}`).value;
-            if (name && String(name).trim()) {
-                instruments.push({
-                    name: String(name).trim(),
-                    brand: String(worksheet.getCell(`B${row}`).value || '').trim(),
-                    model: String(worksheet.getCell(`C${row}`).value || '').trim(),
-                    serie: String(worksheet.getCell(`D${row}`).value || '').trim(),
-                    date: String(worksheet.getCell(`E${row}`).value || '').trim()
-                });
+            const name = String(worksheet.getCell(`A${row}`).value || '').trim();
+            const brand = String(worksheet.getCell(`B${row}`).value || '').trim();
+            const model = String(worksheet.getCell(`C${row}`).value || '').trim();
+            const serie = String(worksheet.getCell(`D${row}`).value || '').trim();
+            const date = String(worksheet.getCell(`E${row}`).value || '').trim();
+
+            if (name || brand || model || serie || date) {
+                const combinedText = (name + brand + model + serie).toLowerCase();
+
+                // Si detectamos texto de cabecera de la siguiente sección, paramos la extracción
+                if (combinedText.includes('estado de') || combinedText.includes('valoracion') || name.length > 60) {
+                    break;
+                }
+
+                instruments.push({ name, brand, model, serie, date });
             }
         }
         return instruments;
