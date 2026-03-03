@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentClinic = '';
     let calibrationDates = {}; // { serie: { date, technician, etc. } }
     let instrumentsBank = []; // Unique instruments for autocomplete
+    let savedTemplates = []; // [{ id, name, blob }]
 
     const INSPECTION_SCHEMA = {
         "8.1 Test Cualitativo": [
@@ -63,6 +64,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const instrumentsContainer = document.getElementById('instrumentsContainer');
     const certFileInput = document.getElementById('certFileInput');
     const certStatus = document.getElementById('certStatus');
+    const templateSelector = document.getElementById('templateSelector');
+    const templateNameInput = document.getElementById('templateNameInput');
+    const saveNewTemplateBtn = document.getElementById('saveNewTemplateBtn');
+    const saveTemplateRow = document.getElementById('saveTemplateRow');
     const saveCalibBtn = document.getElementById('saveCalibBtn');
     const totalEquiposEl = document.getElementById('totalEquipos').querySelector('.val');
     const cercaVencerEl = document.getElementById('cercaVencer').querySelector('.val');
@@ -94,6 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (!db.objectStoreNames.contains('appData')) {
                     db.createObjectStore('appData', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('templates')) {
+                    db.createObjectStore('templates', { keyPath: 'id', autoIncrement: true });
                 }
             };
             request.onsuccess = (e) => {
@@ -491,6 +499,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const dropZone = document.getElementById('dropZone');
         dropZone.addEventListener('click', () => fileInput.click());
 
+        loadTemplates(); // Cargar la lista de plantillas al inicio
+
         sheetSelector.addEventListener('change', (e) => {
             currentClinic = e.target.value;
             renderTable();
@@ -609,6 +619,128 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+    }
+
+    // --- Gestión de Plantillas ---
+    async function loadTemplates() {
+        const tx = db.transaction('templates', 'readonly');
+        const store = tx.objectStore('templates');
+        const request = store.getAll();
+        request.onsuccess = () => {
+            savedTemplates = request.result;
+            updateTemplateSelector();
+        };
+    }
+
+    function updateTemplateSelector() {
+        templateSelector.innerHTML = '<option value="">-- Seleccionar Plantilla --</option>';
+        savedTemplates.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            templateSelector.appendChild(opt);
+        });
+    }
+
+    certFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+            saveTemplateRow.classList.remove('hidden');
+        } else {
+            saveTemplateRow.classList.add('hidden');
+        }
+    });
+
+    saveNewTemplateBtn.addEventListener('click', async () => {
+        const file = certFileInput.files[0];
+        const name = templateNameInput.value.trim();
+        if (!file || !name) {
+            alert('Selecciona un archivo Excel y ponle un nombre a la plantilla.');
+            return;
+        }
+        const tx = db.transaction('templates', 'readwrite');
+        const store = tx.objectStore('templates');
+        store.add({ name: name, blob: file });
+        tx.oncomplete = () => {
+            alert('Plantilla guardada correctamente.');
+            templateNameInput.value = '';
+            saveTemplateRow.classList.add('hidden');
+            loadTemplates();
+        };
+    });
+
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+        editModal.classList.add('hidden');
+    });
+
+    saveCalibBtn.addEventListener('click', async () => {
+        if (!selectedSerieForEdit) return;
+        const newDate = calibDateInput.value;
+        const ordenM = ordenMInput.value;
+        const technician = technicianInput.value;
+        const building = buildingInput.value;
+        const sector = sectorInput.value;
+        const location = locationInput.value;
+        const brand = brandInput.value;
+        const model = modelInput.value;
+        const editedName = equipmentNameInput.value;
+        const editedSerie = modalSerieInput.value;
+
+        const selectedTemplateId = templateSelector.value;
+        const template = savedTemplates.find(t => t.id == selectedTemplateId);
+
+        const instruments = getInstrumentsData();
+        const inspections = getInspectionsData();
+        let certificate = certFileInput.files[0] || (template ? template.blob : null);
+
+        // --- Gestión de Plantillas ---
+        async function loadTemplates() {
+            const tx = db.transaction('templates', 'readonly');
+            const store = tx.objectStore('templates');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                savedTemplates = request.result;
+                updateTemplateSelector();
+            };
+        }
+
+        function updateTemplateSelector() {
+            templateSelector.innerHTML = '<option value="">-- Seleccionar Plantilla --</option>';
+            savedTemplates.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name;
+                templateSelector.appendChild(opt);
+            });
+        }
+
+        certFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                saveTemplateRow.classList.remove('hidden');
+            } else {
+                saveTemplateRow.classList.add('hidden');
+            }
+        });
+
+        saveNewTemplateBtn.addEventListener('click', async () => {
+            const file = certFileInput.files[0];
+            const name = templateNameInput.value.trim();
+            if (!file || !name) {
+                alert('Selecciona un archivo Excel y ponle un nombre a la plantilla.');
+                return;
+            }
+            const tx = db.transaction('templates', 'readwrite');
+            const store = tx.objectStore('templates');
+            store.add({ name: name, blob: file });
+            tx.oncomplete = () => {
+                alert('Plantilla guardada correctamente.');
+                templateNameInput.value = '';
+                saveTemplateRow.classList.add('hidden');
+                loadTemplates();
+            };
+        });
+
         document.getElementById('closeModalBtn').addEventListener('click', () => {
             editModal.classList.add('hidden');
         });
@@ -625,9 +757,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const model = modelInput.value;
             const editedName = equipmentNameInput.value;
             const editedSerie = modalSerieInput.value;
+
+            const selectedTemplateId = templateSelector.value;
+            const template = savedTemplates.find(t => t.id == selectedTemplateId);
+
             const instruments = getInstrumentsData();
             const inspections = getInspectionsData();
-            let certificate = certFileInput.files[0] || null;
+            let certificate = certFileInput.files[0] || (template ? template.blob : null);
 
             if (!newDate) {
                 alert('Por favor selecciona una fecha de calibración.');
@@ -684,299 +820,300 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Error al guardar: ' + err.message);
             }
         });
+
     }
 
     // === EXCEL MANIPULATION (Using ExcelJS to preserve styles) ===
     async function updateExcelCertificate(originalBlob, data) {
-        try {
-            const arrayBuffer = await originalBlob.arrayBuffer();
-            const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(arrayBuffer);
-            console.log("Definitive Mapping Version: 2026-02-27T14:40");
-            let worksheet = workbook.getWorksheet('Certificado') || workbook.worksheets[0];
+            try {
+                const arrayBuffer = await originalBlob.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+                console.log("Definitive Mapping Version: 2026-03-03T11:00");
+                let worksheet = workbook.getWorksheet('Certificado') || workbook.worksheets[0];
 
-            if (!worksheet) {
-                throw new Error('No se encontró la hoja de certificado.');
-            }
-
-            const getVal = (row, words) => {
-                if (!row) return '';
-                const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
-                return row[key] || '';
-            };
-
-            const eq = data.equipment || {};
-            const eqName = (getVal(eq, ['equipo', 'nombre']) || '').toUpperCase();
-
-            // Configuración de Mapeos Dinámicos
-            const CONFIG_TEMPLATES = {
-                'ELECTROCARDIOGRAFO': {
-                    cells: {
-                        'brand': 'D7',
-                        'model': 'D5',
-                        'serie': 'A7',
-                        'equipment': 'A5',
-                        'building': 'H5',
-                        'sector': 'H6',
-                        'location': 'H7',
-                        'date': 'H8',
-                        'ordenM': 'H9',
-                        'technician': 'H10'
-                    },
-                    instrumentsStartRow: 12,
-                    instrumentsMaxRows: 4
-                },
-                'DEFAULT': {
-                    cells: {
-                        'brand': 'D7',
-                        'model': 'D5',
-                        'serie': 'A7',
-                        'equipment': 'A5',
-                        'building': 'H5',
-                        'sector': 'H6',
-                        'location': 'H7',
-                        'date': 'H8',
-                        'ordenM': 'H9',
-                        'technician': 'H10'
-                    },
-                    instrumentsStartRow: 12,
-                    instrumentsMaxRows: 5
+                if (!worksheet) {
+                    throw new Error('No se encontró la hoja de certificado.');
                 }
-            };
 
-            // Detectar plantilla con normalización
-            const normalize = (text) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-            const normalizedEqName = normalize(eqName);
-
-            const type = Object.keys(CONFIG_TEMPLATES).find(key => normalizedEqName.includes(normalize(key))) || 'DEFAULT';
-            const config = CONFIG_TEMPLATES[type];
-            const c = config.cells;
-
-            console.log(`Aplicando plantilla tipo: ${type} (Original: ${eqName})`);
-
-            // 1. Actualizar Datos del Equipo y Generales
-            const updates = {
-                [c.equipment]: `Equipo: ${data.editedName || getVal(eq, ['equipo', 'nombre'])}`,
-                [c.model]: `Modelo: ${data.model || ''}`,
-                [c.serie]: `N° serie: ${data.editedSerie || selectedSerieForEdit}`,
-                [c.brand]: `Marca: ${data.brand || ''}`,
-                [c.building]: String(data.building || ''),
-                [c.sector]: String(data.sector || ''),
-                [c.location]: String(data.location || ''),
-                [c.date]: formatDate(data.date),
-                [c.ordenM]: String(data.ordenM || ''),
-                [c.technician]: String(data.technician || '')
-            };
-
-            for (const [cellPos, value] of Object.entries(updates)) {
-                if (!cellPos) continue;
-                const cell = worksheet.getCell(cellPos);
-                const currentStyle = cell.style;
-                cell.value = value;
-                cell.style = currentStyle;
-                console.log(`Excel Update: ${cellPos} = ${value}`);
-            }
-
-            // 1.1 Inyectar Estado de Valoración (Filas 17-20)
-            if (data.evaluations) {
-                const evalMapping = {
-                    "Inspección superada, el equipo es apto para el uso": 17,
-                    "El equipo ha necesitado reparación": 18,
-                    "El equipo no está reparado. No se puede usar": 19,
-                    "El equipo se de DE BAJA": 20
+                const getVal = (row, words) => {
+                    if (!row) return '';
+                    const key = Object.keys(row).find(k => words.some(w => k.toLowerCase().includes(w)));
+                    return row[key] || '';
                 };
 
-                Object.entries(evalMapping).forEach(([point, row]) => {
-                    const result = data.evaluations[point];
-                    const cellH = worksheet.getCell(`H${row}`);
-                    const cellI = worksheet.getCell(`I${row}`);
+                const eq = data.equipment || {};
+                const eqName = (getVal(eq, ['equipo', 'nombre']) || '').toUpperCase();
 
-                    // Limpiar
-                    cellH.value = "";
-                    cellI.value = "";
-
-                    if (result === 'si') {
-                        cellH.value = 'x';
-                    } else if (result === 'no') {
-                        cellI.value = 'x';
+                // Configuración de Mapeos Dinámicos
+                const CONFIG_TEMPLATES = {
+                    'ELECTROCARDIOGRAFO': {
+                        cells: {
+                            'brand': 'D7',
+                            'model': 'D5',
+                            'serie': 'A7',
+                            'equipment': 'A5',
+                            'building': 'H5',
+                            'sector': 'H6',
+                            'location': 'H7',
+                            'date': 'H8',
+                            'ordenM': 'H9',
+                            'technician': 'H10'
+                        },
+                        instrumentsStartRow: 12,
+                        instrumentsMaxRows: 4
+                    },
+                    'DEFAULT': {
+                        cells: {
+                            'brand': 'D7',
+                            'model': 'D5',
+                            'serie': 'A7',
+                            'equipment': 'A5',
+                            'building': 'H5',
+                            'sector': 'H6',
+                            'location': 'H7',
+                            'date': 'H8',
+                            'ordenM': 'H9',
+                            'technician': 'H10'
+                        },
+                        instrumentsStartRow: 12,
+                        instrumentsMaxRows: 5
                     }
-                });
-            }
-
-            // 1.2 Inyectar Comentarios (Fila 21)
-            if (data.comments !== undefined) {
-                const cellComment = worksheet.getCell('A21');
-                const styleComment = cellComment.style;
-                cellComment.value = `Comentarios: ${data.comments || ''}`;
-                cellComment.style = styleComment;
-            }
-
-            // 2. Inyectar instrumentos
-            if (data.instruments && data.instruments.length > 0) {
-                data.instruments.forEach((inst, index) => {
-                    const row = config.instrumentsStartRow + index;
-                    if (index < config.instrumentsMaxRows) {
-                        worksheet.getCell(`A${row}`).value = inst.name || '';
-                        worksheet.getCell(`B${row}`).value = inst.brand || '';
-                        worksheet.getCell(`C${row}`).value = inst.model || '';
-                        worksheet.getCell(`D${row}`).value = inst.serie || '';
-                        worksheet.getCell(`E${row}`).value = inst.date || '';
-                    }
-                });
-            }
-
-            // 3. Inyectar Puntos de Inspección (Secciones 8.1 - 9.1)
-            if (data.inspections) {
-                const schemaMapping = {
-                    "8.1 Test Cualitativo": { startRow: 25, step: 1 },
-                    "8.2 Test de Aceptación": { startRow: 45, step: 1 },
-                    "8.3 Test Cuantitativo": { startRow: 50, step: 1 },
-                    "8.4 Mantenimiento Preventivo": { startRow: 55, step: 1 },
-                    "9.1 Medición de Frecuencia": { startRow: 61, step: 2 } // Valores en 61, 63, 65...
                 };
 
-                Object.entries(schemaMapping).forEach(([title, configInsp]) => {
-                    // Normalización de búsqueda de categoría
-                    const actualTitle = Object.keys(INSPECTION_SCHEMA).find(k =>
-                        k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
-                        title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                    );
-                    const points = INSPECTION_SCHEMA[actualTitle || title];
-                    if (!points) return;
+                // Detectar plantilla con normalización
+                const normalize = (text) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                const normalizedEqName = normalize(eqName);
 
-                    points.forEach((point, index) => {
-                        const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
+                const type = Object.keys(CONFIG_TEMPLATES).find(key => normalizedEqName.includes(normalize(key))) || 'DEFAULT';
+                const config = CONFIG_TEMPLATES[type];
+                const c = config.cells;
 
-                        // Normalización de búsqueda del resultado para el punto exacto
-                        const resultKey = Object.keys(data.inspections).find(k => k.trim() === point.trim());
-                        const result = data.inspections[resultKey || point];
+                console.log(`Aplicando plantilla tipo: ${type} (Original: ${eqName})`);
 
-                        const cellH = worksheet.getCell(`H${rowIdx}`);
-                        const cellI = worksheet.getCell(`I${rowIdx}`);
-                        const cellJ = worksheet.getCell(`J${rowIdx}`);
+                // 1. Actualizar Datos del Equipo y Generales
+                const updates = {
+                    [c.equipment]: `Equipo: ${data.editedName || getVal(eq, ['equipo', 'nombre'])}`,
+                    [c.model]: `Modelo: ${data.model || ''}`,
+                    [c.serie]: `N° serie: ${data.editedSerie || (data.equipment ? String(getVal(data.equipment, ['serie']) || '') : '')}`,
+                    [c.brand]: `Marca: ${data.brand || ''}`,
+                    [c.building]: String(data.building || ''),
+                    [c.sector]: String(data.sector || ''),
+                    [c.location]: String(data.location || ''),
+                    [c.date]: formatDate(data.date),
+                    [c.ordenM]: String(data.ordenM || ''),
+                    [c.technician]: String(data.technician || '')
+                };
 
-                        // Preservar estilos
-                        const styleH = cellH.style;
-                        const styleI = cellI.style;
-                        const styleJ = cellJ.style;
+                for (const [cellPos, value] of Object.entries(updates)) {
+                    if (!cellPos) continue;
+                    const cell = worksheet.getCell(cellPos);
+                    const currentStyle = cell.style;
+                    cell.value = value;
+                    cell.style = currentStyle;
+                    console.log(`Excel Update: ${cellPos} = ${value}`);
+                }
 
-                        // Limpiar antes de escribir con string vacío para asegurar cambio
+                // 1.1 Inyectar Estado de Valoración (Filas 17-20)
+                if (data.evaluations) {
+                    const evalMapping = {
+                        "Inspección superada, el equipo es apto para el uso": 17,
+                        "El equipo ha necesitado reparación": 18,
+                        "El equipo no está reparado. No se puede usar": 19,
+                        "El equipo se de DE BAJA": 20
+                    };
+
+                    Object.entries(evalMapping).forEach(([point, row]) => {
+                        const result = data.evaluations[point];
+                        const cellH = worksheet.getCell(`H${row}`);
+                        const cellI = worksheet.getCell(`I${row}`);
+
+                        // Limpiar
                         cellH.value = "";
                         cellI.value = "";
-                        cellJ.value = "";
 
-                        if (title.includes("9.1")) {
-                            // En 9.1: Fila sombreada (H + rowIdx) = Referencia (nominal)
-                            // Fila NO sombreada (H + rowIdx + 1) = Valor medido
-
-                            // 1. Escribir Referencia Nominal en fila sombreada
-                            const nominal = isNaN(point) ? point : Number(point);
-                            cellH.value = nominal;
-
-                            // 2. Escribir Valor Medido en fila blanca (si existe)
-                            if (result !== undefined && result !== '' && result !== 'na') {
-                                const valNum = isNaN(result) ? result : Number(result);
-                                const cellHBelow = worksheet.getCell(`H${rowIdx + 1}`);
-                                const styleBelow = cellHBelow.style;
-                                cellHBelow.value = valNum;
-                                cellHBelow.style = styleBelow;
-
-                                // Limpieza de columnas adyacentes
-                                worksheet.getCell(`I${rowIdx + 1}`).value = "";
-                                worksheet.getCell(`J${rowIdx + 1}`).value = "";
-                            }
-                        } else if (point === "Baterias y su cargador") {
-                            // Caso especial 8.1.12: Se cambió / No se cambió
-                            if (result === 'si') {
-                                cellH.value = 'Se cambió';
-                            } else if (result === 'no') {
-                                cellH.value = 'No se cambió';
-                            } else if (result === 'na') {
-                                // N/A va en la columna de Pasó (H)
-                                cellH.value = 'N/A';
-                            }
-                        } else {
-                            if (result === 'si') {
-                                // P: PASO en Columna H
-                                cellH.value = 'P';
-                            } else if (result === 'no') {
-                                // F: FALLO en Columna I
-                                cellI.value = 'F';
-                            } else if (result === 'na') {
-                                // N/A en Columna H
-                                cellH.value = 'N/A';
-                            }
+                        if (result === 'si') {
+                            cellH.value = 'x';
+                        } else if (result === 'no') {
+                            cellI.value = 'x';
                         }
-
-                        cellH.style = styleH;
-                        cellI.style = styleI;
                     });
-                });
-            }
+                }
 
-            const buffer = await workbook.xlsx.writeBuffer();
-            return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        } catch (err) {
-            console.error('Error en updateExcelCertificate:', err);
-            throw err;
+                // 1.2 Inyectar Comentarios (Fila 21)
+                if (data.comments !== undefined) {
+                    const cellComment = worksheet.getCell('A21');
+                    const styleComment = cellComment.style;
+                    cellComment.value = `Comentarios: ${data.comments || ''}`;
+                    cellComment.style = styleComment;
+                }
+
+                // 2. Inyectar instrumentos
+                if (data.instruments && data.instruments.length > 0) {
+                    data.instruments.forEach((inst, index) => {
+                        const row = config.instrumentsStartRow + index;
+                        if (index < config.instrumentsMaxRows) {
+                            worksheet.getCell(`A${row}`).value = inst.name || '';
+                            worksheet.getCell(`B${row}`).value = inst.brand || '';
+                            worksheet.getCell(`C${row}`).value = inst.model || '';
+                            worksheet.getCell(`D${row}`).value = inst.serie || '';
+                            worksheet.getCell(`E${row}`).value = inst.date || '';
+                        }
+                    });
+                }
+
+                // 3. Inyectar Puntos de Inspección (Secciones 8.1 - 9.1)
+                if (data.inspections) {
+                    const schemaMapping = {
+                        "8.1 Test Cualitativo": { startRow: 25, step: 1 },
+                        "8.2 Test de Aceptación": { startRow: 45, step: 1 },
+                        "8.3 Test Cuantitativo": { startRow: 50, step: 1 },
+                        "8.4 Mantenimiento Preventivo": { startRow: 55, step: 1 },
+                        "9.1 Medición de Frecuencia": { startRow: 61, step: 2 } // Valores en 61, 63, 65...
+                    };
+
+                    Object.entries(schemaMapping).forEach(([title, configInsp]) => {
+                        // Normalización de búsqueda de categoría
+                        const actualTitle = Object.keys(INSPECTION_SCHEMA).find(k =>
+                            k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+                            title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        );
+                        const points = INSPECTION_SCHEMA[actualTitle || title];
+                        if (!points) return;
+
+                        points.forEach((point, index) => {
+                            const rowIdx = configInsp.startRow + (index * (configInsp.step || 1));
+
+                            // Normalización de búsqueda del resultado para el punto exacto
+                            const resultKey = Object.keys(data.inspections).find(k => k.trim() === point.trim());
+                            const result = data.inspections[resultKey || point];
+
+                            const cellH = worksheet.getCell(`H${rowIdx}`);
+                            const cellI = worksheet.getCell(`I${rowIdx}`);
+                            const cellJ = worksheet.getCell(`J${rowIdx}`);
+
+                            // Preservar estilos
+                            const styleH = cellH.style;
+                            const styleI = cellI.style;
+                            const styleJ = cellJ.style;
+
+                            // Limpiar antes de escribir con string vacío para asegurar cambio
+                            cellH.value = "";
+                            cellI.value = "";
+                            cellJ.value = "";
+
+                            if (title.includes("9.1")) {
+                                // En 9.1: Fila sombreada (H + rowIdx) = Referencia (nominal)
+                                // Fila NO sombreada (H + rowIdx + 1) = Valor medido
+
+                                // 1. Escribir Referencia Nominal en fila sombreada
+                                const nominal = isNaN(point) ? point : Number(point);
+                                cellH.value = nominal;
+
+                                // 2. Escribir Valor Medido en fila blanca (si existe)
+                                if (result !== undefined && result !== '' && result !== 'na') {
+                                    const valNum = isNaN(result) ? result : Number(result);
+                                    const cellHBelow = worksheet.getCell(`H${rowIdx + 1}`);
+                                    const styleBelow = cellHBelow.style;
+                                    cellHBelow.value = valNum;
+                                    cellHBelow.style = styleBelow;
+
+                                    // Limpieza de columnas adyacentes
+                                    worksheet.getCell(`I${rowIdx + 1}`).value = "";
+                                    worksheet.getCell(`J${rowIdx + 1}`).value = "";
+                                }
+                            } else if (point === "Baterias y su cargador") {
+                                // Caso especial 8.1.12: Se cambió / No se cambió
+                                if (result === 'si') {
+                                    cellH.value = 'Se cambió';
+                                } else if (result === 'no') {
+                                    cellH.value = 'No se cambió';
+                                } else if (result === 'na') {
+                                    // N/A va en la columna de Pasó (H)
+                                    cellH.value = 'N/A';
+                                }
+                            } else {
+                                if (result === 'si') {
+                                    // P: PASO en Columna H
+                                    cellH.value = 'P';
+                                } else if (result === 'no') {
+                                    // F: FALLO en Columna I
+                                    cellI.value = 'F';
+                                } else if (result === 'na') {
+                                    // N/A en Columna H
+                                    cellH.value = 'N/A';
+                                }
+                            }
+
+                            cellH.style = styleH;
+                            cellI.style = styleI;
+                        });
+                    });
+                }
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            } catch (err) {
+                console.error('Error en updateExcelCertificate:', err);
+                throw err;
+            }
         }
-    }
 
     function requestNotificationPermission() {
-        if ('Notification' in window) {
-            Notification.requestPermission();
+            if ('Notification' in window) {
+                Notification.requestPermission();
+            }
         }
-    }
 
     // === UTILIDADES ===
     function formatDate(dateStr) {
-        if (!dateStr) return '';
-        const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    }
+            if (!dateStr) return '';
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
 
     async function checkExpirations() {
-        if (!allSheetsData || Object.keys(allSheetsData).length === 0) return;
+            if (!allSheetsData || Object.keys(allSheetsData).length === 0) return;
 
-        const calibrations = await getAllCalibrations();
-        const now = new Date();
-        const expirations = [];
+            const calibrations = await getAllCalibrations();
+            const now = new Date();
+            const expirations = [];
 
-        Object.keys(allSheetsData).forEach(clinic => {
-            allSheetsData[clinic].forEach(row => {
-                const serieKey = Object.keys(row).find(k => k.toLowerCase().includes('serie'));
-                const serie = String(row[serieKey] || '').toUpperCase();
-                const calibObj = calibrations[serie];
-                const calDateStr = calibObj ? calibObj.date : null;
+            Object.keys(allSheetsData).forEach(clinic => {
+                allSheetsData[clinic].forEach(row => {
+                    const serieKey = Object.keys(row).find(k => k.toLowerCase().includes('serie'));
+                    const serie = String(row[serieKey] || '').toUpperCase();
+                    const calibObj = calibrations[serie];
+                    const calDateStr = calibObj ? calibObj.date : null;
 
-                if (calDateStr) {
-                    const calDate = new Date(calDateStr);
-                    const nextCal = new Date(calDate);
-                    nextCal.setFullYear(nextCal.getFullYear() + 1);
+                    if (calDateStr) {
+                        const calDate = new Date(calDateStr);
+                        const nextCal = new Date(calDate);
+                        nextCal.setFullYear(nextCal.getFullYear() + 1);
 
-                    const diffDays = Math.ceil((nextCal - now) / (1000 * 60 * 60 * 24));
+                        const diffDays = Math.ceil((nextCal - now) / (1000 * 60 * 60 * 24));
 
-                    if (diffDays <= 30 && diffDays > 0) {
-                        expirations.push({ serie, clinic, days: diffDays });
-                    } else if (diffDays <= 0) {
-                        expirations.push({ serie, clinic, expired: true });
+                        if (diffDays <= 30 && diffDays > 0) {
+                            expirations.push({ serie, clinic, days: diffDays });
+                        } else if (diffDays <= 0) {
+                            expirations.push({ serie, clinic, expired: true });
+                        }
                     }
-                }
-            });
-        });
-
-        if (expirations.length > 0) {
-            const expiredCount = expirations.filter(e => e.expired).length;
-            const soonCount = expirations.filter(e => !e.expired).length;
-
-            if (Notification.permission === 'granted') {
-                new Notification('Alerta de Calibración', {
-                    body: `Hay ${expiredCount} equipos vencidos y ${soonCount} por vencer próximamente.`,
-                    icon: '../favicon.ico'
                 });
+            });
+
+            if (expirations.length > 0) {
+                const expiredCount = expirations.filter(e => e.expired).length;
+                const soonCount = expirations.filter(e => !e.expired).length;
+
+                if (Notification.permission === 'granted') {
+                    new Notification('Alerta de Calibración', {
+                        body: `Hay ${expiredCount} equipos vencidos y ${soonCount} por vencer próximamente.`,
+                        icon: '../favicon.ico'
+                    });
+                }
             }
         }
-    }
 
     // Ejecutar chequeo al cargar
     setTimeout(checkExpirations, 2000);

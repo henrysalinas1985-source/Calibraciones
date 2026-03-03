@@ -84,7 +84,8 @@
                 </div>
                 <div class="input-group">
                     <label>N° de Serie</label>
-                    <input type="text" id="modalSerieInput" placeholder="Número de serie" style="text-transform: uppercase;">
+                    <input type="text" id="modalSerieInput" placeholder="Número de serie"
+                        style="text-transform: uppercase;">
                 </div>
                 <div class="input-group">
                     <label>Fecha de Calibración</label>
@@ -154,10 +155,26 @@
                     <label>Ubicación Técnica</label>
                     <input type="text" id="locationInput" placeholder="Ej: 2° Piso">
                 </div>
-                <div class="input-group">
-                    <label>Certificado (PDF/Imagen/Excel)</label>
-                    <input type="file" id="certFileInput" accept=".pdf,.xlsx,.xls,image/*">
-                    <p id="certStatus"></p>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label>Certificado (PDF/Imagen/Excel)</label>
+                        <input type="file" id="certFileInput" accept=".pdf,.xlsx,.xls,image/*">
+                        <p id="certStatus"></p>
+                    </div>
+                    <div class="input-group">
+                        <label>O usar Plantilla Guardada</label>
+                        <select id="templateSelector" class="filter-select">
+                            <option value="">-- Seleccionar Plantilla --</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="saveTemplateRow" class="input-group hidden">
+                    <label>Nombre para guardar esta Plantilla</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="templateNameInput" placeholder="Ej: Plantilla ECG 2025" style="flex: 1;">
+                        <button type="button" id="saveNewTemplateBtn" class="btn btn-secondary">💾 Guardar
+                            Plantilla</button>
+                    </div>
                 </div>
                 <div class="btn-row">
                     <button id="saveCalibBtn" class="btn btn-primary">Guardar</button>
