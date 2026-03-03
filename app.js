@@ -319,10 +319,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (status.class === 'status-warning') stats.warning++;
                 if (status.class === 'status-danger') stats.danger++;
 
+                // Prioridad: 1. Valor editado guardado 2. Valor original del Excel
+                const displayName = (calibObj && calibObj.editedName) ? calibObj.editedName : (nombreKey ? (row[nombreKey] || 'N/A') : 'N/A');
+                const displaySerie = (calibObj && calibObj.editedSerie) ? calibObj.editedSerie : serie;
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${nombreKey ? (row[nombreKey] || 'N/A') : 'N/A'}</td>
-                    <td>${serie}</td>
+                    <td>${displayName}</td>
+                    <td>${displaySerie}</td>
                     <td>${calibDate ? formatDate(calibDate) : '<span style="color:#666">No registrada</span>'}</td>
                     <td>${calibObj && calibObj.technician ? calibObj.technician : '-'}</td>
                     <td>
