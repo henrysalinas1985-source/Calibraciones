@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const DB_NAME = 'CalibracionesDB';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
 
     // Elementos DOM
     const fileInput = document.getElementById('fileInput');
@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const certFileInput = document.getElementById('certFileInput');
     const certStatus = document.getElementById('certStatus');
     const templateSelector = document.getElementById('templateSelector');
+    const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
     const templateNameInput = document.getElementById('templateNameInput');
     const saveNewTemplateBtn = document.getElementById('saveNewTemplateBtn');
     const saveTemplateRow = document.getElementById('saveTemplateRow');
@@ -117,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tx = db.transaction('calibrations', 'readwrite');
             const store = tx.objectStore('calibrations');
             const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie };
-            
+
             if (certificate) {
                 data.certificate = certificate; // Blob
                 data.certName = certificate.name || 'Certificado.xlsx';
@@ -728,6 +729,32 @@ document.addEventListener('DOMContentLoaded', () => {
             saveTemplateRow.classList.add('hidden');
             loadTemplates();
         };
+    });
+
+    deleteTemplateBtn.addEventListener('click', async () => {
+        const selectedId = templateSelector.value;
+        if (!selectedId) {
+            alert('Por favor, selecciona una plantilla para eliminar.');
+            return;
+        }
+
+        const template = savedTemplates.find(t => String(t.id) === String(selectedId));
+        if (!template) return;
+
+        if (confirm(`¿Estás seguro de que deseas eliminar la plantilla "${template.name}"?`)) {
+            try {
+                const tx = db.transaction('templates', 'readwrite');
+                const store = tx.objectStore('templates');
+                store.delete(Number(selectedId));
+                tx.oncomplete = () => {
+                    alert('Plantilla eliminada correctamente.');
+                    loadTemplates();
+                };
+            } catch (err) {
+                console.error('Error al eliminar plantilla:', err);
+                alert('No se pudo eliminar la plantilla: ' + err.message);
+            }
+        }
     });
 
     document.getElementById('closeModalBtn').addEventListener('click', () => {

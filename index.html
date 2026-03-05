@@ -163,9 +163,12 @@
                     </div>
                     <div class="input-group">
                         <label>O usar Plantilla Guardada</label>
-                        <select id="templateSelector" class="filter-select">
-                            <option value="">-- Seleccionar Plantilla --</option>
-                        </select>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="templateSelector" class="filter-select" style="flex: 1;">
+                                <option value="">-- Seleccionar Plantilla --</option>
+                            </select>
+                            <button type="button" id="deleteTemplateBtn" class="btn btn-danger" title="Eliminar Plantilla Seleccionada">🗑️</button>
+                        </div>
                     </div>
                 </div>
                 <div id="saveTemplateRow" class="input-group hidden">
