@@ -113,24 +113,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function storeCalibration(serie, date, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie) {
-        const tx = db.transaction('calibrations', 'readwrite');
-        const store = tx.objectStore('calibrations');
-        const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie };
-        if (certificate) {
-            data.certificate = certificate; // Blob
-            data.certName = certificate.name;
-        } else {
-            // Mantener el certificado anterior si no se sube uno nuevo
-            const existing = await new Promise(resolve => {
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('calibrations', 'readwrite');
+            const store = tx.objectStore('calibrations');
+            const data = { serie, date, technician, ordenM, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie };
+            
+            if (certificate) {
+                data.certificate = certificate; // Blob
+                data.certName = certificate.name || 'Certificado.xlsx';
+            } else {
+                // Mantener el certificado anterior si no se sube uno nuevo
                 const req = store.get(serie);
-                req.onsuccess = () => resolve(req.result);
-            });
-            if (existing && existing.certificate) {
-                data.certificate = existing.certificate;
-                data.certName = existing.certName;
+                req.onsuccess = () => {
+                    const existing = req.result;
+                    if (existing && existing.certificate) {
+                        data.certificate = existing.certificate;
+                        data.certName = existing.certName;
+                    }
+                    store.put(data);
+                };
             }
-        }
-        store.put(data);
+
+            if (certificate) {
+                store.put(data);
+            }
+
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        });
     }
 
     function getAllCalibrations() {
@@ -616,6 +626,27 @@ document.addEventListener('DOMContentLoaded', () => {
             editModal.classList.remove('hidden');
         };
 
+        // Escuchar cambios en el selector de plantillas para cargar instrumentos al instante
+        templateSelector.addEventListener('change', async (e) => {
+            const selectedTemplateId = e.target.value;
+            if (!selectedTemplateId) return;
+
+            const template = savedTemplates.find(t => String(t.id) === String(selectedTemplateId));
+            if (template && template.blob) {
+                try {
+                    // Mostrar algún indicador de carga simple si fuera necesario
+                    console.log("Cargando instrumentos desde la plantilla:", template.name);
+                    const extracted = await extractInstrumentsFromExcel(template.blob);
+                    if (extracted && extracted.length > 0) {
+                        instrumentsContainer.innerHTML = '';
+                        extracted.forEach(inst => createInstrumentRow(inst));
+                    }
+                } catch (err) {
+                    console.error("Error al cargar instrumentos de la plantilla:", err);
+                }
+            }
+        });
+
         window.viewCert = (serie) => {
             const data = calibrationDates[serie];
             if (data && data.certificate) {
@@ -736,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const existingData = calibrationDates[selectedSerieForEdit] || {};
             let certToUpdate = certificate || existingData.certificate;
-            let certName = certificate ? certificate.name : existingData.certName;
+            let certName = certificate ? (certificate.name || template?.name || 'Certificado.xlsx') : existingData.certName;
 
             const evaluations = {};
             document.querySelectorAll('#evaluationStatusContainer .inspection-options').forEach(group => {
@@ -747,7 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const comments = commentsInput.value;
 
-            if (certToUpdate && (certName.toLowerCase().endsWith('.xlsx') || certName.toLowerCase().endsWith('.xls'))) {
+            if (certToUpdate && certName && (certName.toLowerCase().endsWith('.xlsx') || certName.toLowerCase().endsWith('.xls'))) {
                 certificate = await updateExcelCertificate(certToUpdate, {
                     date: newDate,
                     technician: technician,
@@ -765,13 +796,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     evaluations: evaluations,
                     comments: comments
                 });
+                // Si el certificado fue generado dinámicamente, el Blob resultante no tiene nombre.
+                // Le asignamos el nombre original o el de la plantilla.
+                certificate.name = certName;
             }
 
             await storeCalibration(selectedSerieForEdit, newDate, technician, ordenM, certificate, building, sector, location, brand, model, instruments, inspections, evaluations, comments, editedName, editedSerie);
             calibrationDates[selectedSerieForEdit] = {
                 date: newDate, technician, ordenM, certificate, building, sector, location,
                 brand, model, instruments, inspections, evaluations, comments,
-                editedName, editedSerie, certName: certName || (certificate ? certificate.name : null)
+                editedName, editedSerie, certName: certName
             };
             updateInstrumentsBank();
 
