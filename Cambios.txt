@@ -1,3 +1,0 @@
-Hasta aca va con el clic para vencimientos dentro de 2 meses pero falta arreglar el icono de vencimiento
-
-Proximo paso es poder adjuntar la carpeta
